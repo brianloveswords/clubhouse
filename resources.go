@@ -65,12 +65,21 @@ type Commit struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// CategoryType enum for CreateCategoryParams
+type CategoryType string
+
+// Currently the only valid value
+var (
+	CategoryTypeMilestone CategoryType = "milestone"
+)
+
 // CreateCategoryParams represents request parameters for creating a
 // Category with a Milestone.
 type CreateCategoryParams struct {
-	Color      string `json:"color"`
-	ExternalID string `json:"external_id"`
-	Name       string `json:"name"`
+	Color      string       `json:"color,omitempty"`
+	ExternalID string       `json:"external_id,omitempty"`
+	Name       string       `json:"name"`
+	Type       CategoryType `json:"type"`
 }
 
 // CreateCommentParams represents request parameters for creating a
