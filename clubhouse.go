@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"path"
@@ -154,12 +153,10 @@ func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category
 		bodyp = params
 	}
 
-	bodybytes, err := json.Marshal(&bodyp)
+	body, err := json.Marshal(&bodyp)
 	if err != nil {
 		return nil, fmt.Errorf("UpdateCategory: could not marshal params, %s", err)
 	}
-
-	body := bytes.NewBuffer(bodybytes)
 	bytes, err := c.RequestWithBody("PUT", resource, body)
 	if err != nil {
 		return nil, err
@@ -184,12 +181,10 @@ func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error)
 		params.Type = CategoryTypeMilestone
 	}
 
-	bodybytes, err := json.Marshal(&params)
+	body, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("CreateCategory: could not marshal params, %s", err)
 	}
-
-	body := bytes.NewBuffer(bodybytes)
 	bytes, err := c.RequestWithBody("POST", "categories", body)
 	if err != nil {
 		return nil, err
@@ -218,7 +213,15 @@ func (c *Client) ListEpics() ([]Epic, error) {
 // EpicState ...
 type EpicState string
 
-// Time ...
+// Epic State values
+const (
+	EpicStateDone       EpicState = "done"
+	EpicStateInProgress           = "in progress"
+	EpicStateToDo                 = "to do"
+)
+
+// Time is a convenience function for getting a pointer to a time.Time
+// from an expression
 func Time(t time.Time) *time.Time {
 	return &t
 }
@@ -226,13 +229,6 @@ func Time(t time.Time) *time.Time {
 // ResetTime is the sentinel value for indicating that a null value
 // should be sent for a time type.
 var ResetTime = Time(time.Time{})
-
-// Epic State values
-const (
-	EpicStateDone       EpicState = "done"
-	EpicStateInProgress           = "in progress"
-	EpicStateToDo                 = "to do"
-)
 
 // CreateEpicParams ...
 type CreateEpicParams struct {
@@ -252,11 +248,10 @@ type CreateEpicParams struct {
 
 // CreateEpic ...
 func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
-	bodybytes, err := json.Marshal(params)
+	body, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("CreateEpic: could not marshal params, %s", err)
 	}
-	body := bytes.NewBuffer(bodybytes)
 	bytes, err := c.RequestWithBody("POST", "epics", body)
 	if err != nil {
 		return nil, err
@@ -316,6 +311,23 @@ type UpdateEpicParams struct {
 	StartedAtOverride   *time.Time
 	State               EpicState
 }
+
+type updateEpicParamsResolved struct {
+	AfterID             *int                `json:"after_id,omitempty"`
+	Archived            *bool               `json:"archived,omitempty"`
+	BeforeID            *int                `json:"before_id,omitempty"`
+	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
+	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
+	State               EpicState           `json:"state,omitempty"`
+}
+
 type nullable []struct {
 	in   interface{}
 	out  **json.RawMessage
@@ -337,7 +349,7 @@ func (n nullable) Do() {
 }
 
 // MarshalJSON ...
-func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
+func (p UpdateEpicParams) MarshalJSON() ([]byte, error) {
 	out := updateEpicParamsResolved{
 		Archived:    p.Archived,
 		AfterID:     p.AfterID,
@@ -371,30 +383,13 @@ func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&out)
 }
 
-type updateEpicParamsResolved struct {
-	AfterID             *int                `json:"after_id,omitempty"`
-	Archived            *bool               `json:"archived,omitempty"`
-	BeforeID            *int                `json:"before_id,omitempty"`
-	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
-	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
-	Description         *string             `json:"description,omitempty"`
-	FollowerIDs         []string            `json:"follower_ids,omitempty"`
-	Labels              []CreateLabelParams `json:"labels,omitempty"`
-	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
-	Name                string              `json:"name,omitempty"`
-	OwnerIDs            []string            `json:"owner_ids,omitempty"`
-	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
-	State               EpicState           `json:"state,omitempty"`
-}
-
 // UpdateEpic ...
 func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
 	resource := path.Join("epics", strconv.Itoa(id))
-	bodybytes, err := json.Marshal(&params)
+	body, err := json.Marshal(&params)
 	if err != nil {
 		return nil, fmt.Errorf("UpdateEpic: could not marshal params, %s", err)
 	}
-	body := bytes.NewBuffer(bodybytes)
 	bytes, err := c.RequestWithBody("PUT", resource, body)
 	if err != nil {
 		return nil, err
@@ -413,13 +408,119 @@ func (c *Client) DeleteEpic(id int) error {
 	return err
 }
 
+// CreateEpicComment ...
+func (c *Client) CreateEpicComment(epicID int, params *CreateCommentParams) (*ThreadedComment, error) {
+	resource := path.Join("epics", strconv.Itoa(epicID), "comments")
+	body, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("CreateEpicComment: could not marshal params, %s", err)
+	}
+	bytes, err := c.RequestWithBody("POST", resource, body)
+	if err != nil {
+		return nil, err
+	}
+	comment := ThreadedComment{}
+	if err := json.Unmarshal(bytes, &comment); err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
+// UpdateEpicComment ...
+func (c *Client) UpdateEpicComment(
+	epicID int,
+	commentID int,
+	params *UpdateCommentParams,
+) (*ThreadedComment, error) {
+	resource := path.Join(
+		"epics", strconv.Itoa(epicID),
+		"comments", strconv.Itoa(commentID),
+	)
+	body, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateEpicComment: could not marshal params, %s", err)
+	}
+	bytes, err := c.RequestWithBody("PUT", resource, body)
+	if err != nil {
+		return nil, err
+	}
+	comment := ThreadedComment{}
+	if err := json.Unmarshal(bytes, &comment); err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
+// CreateEpicCommentComment ...
+func (c *Client) CreateEpicCommentComment(
+	epicID int,
+	commentID int,
+	params *CreateCommentParams,
+) (*ThreadedComment, error) {
+	resource := path.Join(
+		"epics", strconv.Itoa(epicID),
+		"comments", strconv.Itoa(commentID),
+	)
+	body, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("CreateEpicCommentComment: could not marshal params, %s", err)
+	}
+	bytes, err := c.RequestWithBody("POST", resource, body)
+	if err != nil {
+		return nil, err
+	}
+	comment := ThreadedComment{}
+	if err := json.Unmarshal(bytes, &comment); err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
+// ListEpicComments ...
+func (c *Client) ListEpicComments(epicID int) ([]ThreadedComment, error) {
+	resource := path.Join("epics", strconv.Itoa(epicID), "comments")
+	bytes, err := c.Request("GET", resource)
+	if err != nil {
+		return nil, err
+	}
+	comments := []ThreadedComment{}
+	if err := json.Unmarshal(bytes, &comments); err != nil {
+		return nil, err
+	}
+	return comments, nil
+}
+
+// GetEpicComment ...
+func (c *Client) GetEpicComment(epicID, commentID int) (*ThreadedComment, error) {
+	resource := path.Join(
+		"epics", strconv.Itoa(epicID),
+		"comments", strconv.Itoa(commentID),
+	)
+	bytes, err := c.Request("GET", resource)
+	if err != nil {
+		return nil, err
+	}
+	comment := ThreadedComment{}
+	if err := json.Unmarshal(bytes, &comment); err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
+// DeleteEpicComment creates an epic
+func (c *Client) DeleteEpicComment(epicID, commentID int) error {
+	resource := path.Join(
+		"epics", strconv.Itoa(epicID),
+		"comments", strconv.Itoa(commentID),
+	)
+	_, err := c.Request("DELETE", resource)
+	return err
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
-func (c *Client) Request(
-	method string,
-	endpoint string,
-) ([]byte, error) {
-	return c.RequestWithBody(method, endpoint, http.NoBody)
+func (c *Client) Request(method string, endpoint string) ([]byte, error) {
+	return c.RequestWithBody(method, endpoint, []byte{})
 }
 
 // ErrClientRequest is returned when the client runs into
@@ -453,7 +554,7 @@ func (e ErrClientRequest) Error() string {
 func (c *Client) RequestWithBody(
 	method string,
 	endpoint string,
-	body io.Reader,
+	content []byte,
 ) ([]byte, error) {
 	var err error
 
@@ -461,6 +562,7 @@ func (c *Client) RequestWithBody(
 	c.checkSetup()
 
 	url := c.makeURL(endpoint)
+	body := bytes.NewBuffer(content)
 	req, err := http.NewRequest(method, url, body)
 
 	if err != nil {

@@ -85,11 +85,16 @@ type CreateCategoryParams struct {
 // CreateCommentParams represents request parameters for creating a
 // Comment on a Clubhouse Story.
 type CreateCommentParams struct {
-	AuthorID   string    `json:"author_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExternalID string    `json:"external_id"`
-	Text       string    `json:"text"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	AuthorID   string     `json:"author_id,omitempty"`
+	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	ExternalID string     `json:"external_id,omitempty"`
+	Text       string     `json:"text,omitempty"`
+	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
+}
+
+// UpdateCommentParams ...
+type UpdateCommentParams struct {
+	Text string `json:"text"`
 }
 
 // CreateLabelParams represents request parameters for creating a Label
