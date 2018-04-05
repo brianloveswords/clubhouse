@@ -47,7 +47,7 @@ func TestUpdateCategory(t *testing.T) {
 	c := makeClient()
 	knownID := 17
 
-	newColor, err := c.UpdateCategory(knownID, UpdateCategoryParams{
+	newColor, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
 		Color:    Color("#00ff00"),
 		Archived: Archived,
 	})
@@ -61,7 +61,7 @@ func TestUpdateCategory(t *testing.T) {
 		t.Error("should have archived newColor")
 	}
 
-	newArchive, err := c.UpdateCategory(knownID, UpdateCategoryParams{
+	newArchive, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
 		Archived: Unarchived,
 	})
 	if err != nil {
@@ -74,7 +74,7 @@ func TestUpdateCategory(t *testing.T) {
 		t.Error("color didn't stick through archive", newArchive.Color)
 	}
 
-	resetColor, err := c.UpdateCategory(knownID, UpdateCategoryParams{
+	resetColor, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
 		Color: ResetColor,
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func TestUpdateCategory(t *testing.T) {
 
 func TestCreateAndDeleteCategory(t *testing.T) {
 	c := makeClient()
-	newcat, err := c.CreateCategory(CreateCategoryParams{
+	newcat, err := c.CreateCategory(&CreateCategoryParams{
 		Name:  "Hammes Fistkicker",
 		Color: "powerful",
 	})
@@ -138,9 +138,6 @@ func TestListEpics(t *testing.T) {
 	if epics[0].EntityType != "epic" {
 		t.Fatal("expected entity type to be epic")
 	}
-	output := fmt.Sprintf("len: %d; entity type: %s",
-		len(epics), epics[0].EntityType)
-	snapshot(t, "ListEpics", output)
 }
 
 func TestUpdateEpicParams(t *testing.T) {
@@ -273,13 +270,11 @@ func TestCRUDEpics(t *testing.T) {
 	label := CreateLabelParams{Color: "red", Name: "test epic label"}
 	var epicID int
 	t.Run("create", func(t *testing.T) {
-		epic, err := c.CreateEpic(CreateEpicParams{
+		epic, err := c.CreateEpic(&CreateEpicParams{
 			Name:      "new test epic",
 			CreatedAt: Time(time.Now()),
 			State:     EpicStateInProgress,
-			Labels: []CreateLabelParams{
-				label,
-			},
+			Labels:    []CreateLabelParams{label},
 		})
 		if err != nil {
 			t.Fatal("CreateEpic: couldn't create", err)
@@ -313,7 +308,9 @@ func TestCRUDEpics(t *testing.T) {
 		}
 	})
 	t.Run("update", func(t *testing.T) {
-		_, err := c.UpdateEpic(epicID, UpdateEpicParams{})
+		_, err := c.UpdateEpic(epicID, UpdateEpicParams{
+			Name: "a different name",
+		})
 		if err != nil {
 			t.Fatal("UpdateEpic: did not expect error updating", err)
 		}

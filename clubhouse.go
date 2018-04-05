@@ -3,7 +3,6 @@ package clubhouse
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -129,7 +128,7 @@ type updateCategoryParamsWithoutColor struct {
 // UpdateCategory allows you to replace a Category name with another
 // name. If you try to name a Category something that already exists,
 // you will get an ErrUnprocessable error.
-func (c *Client) UpdateCategory(id int, params UpdateCategoryParams) (*Category, error) {
+func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category, error) {
 	c.checkSetup()
 	resource := path.Join("categories", strconv.Itoa(id))
 
@@ -141,6 +140,7 @@ func (c *Client) UpdateCategory(id int, params UpdateCategoryParams) (*Category,
 	// only want to send that if the user has explicitly indicated that
 	// they want to reset the color, *not* in cases where the Color has
 	// been left out of the parameter list.
+	// TODO: update this to use a similar algorithm to UpdateEpicParams
 	var bodyp interface{}
 	if params.Color == nil {
 		bodyp = updateCategoryParamsWithoutColor{
@@ -154,7 +154,7 @@ func (c *Client) UpdateCategory(id int, params UpdateCategoryParams) (*Category,
 		bodyp = params
 	}
 
-	bodybytes, err := json.Marshal(bodyp)
+	bodybytes, err := json.Marshal(&bodyp)
 	if err != nil {
 		return nil, fmt.Errorf("UpdateCategory: could not marshal params, %s", err)
 	}
@@ -179,12 +179,12 @@ func (c *Client) DeleteCategory(id int) error {
 }
 
 // CreateCategory creates a new category.
-func (c *Client) CreateCategory(params CreateCategoryParams) (*Category, error) {
+func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error) {
 	if params.Type == "" {
 		params.Type = CategoryTypeMilestone
 	}
 
-	bodybytes, err := json.Marshal(params)
+	bodybytes, err := json.Marshal(&params)
 	if err != nil {
 		return nil, fmt.Errorf("CreateCategory: could not marshal params, %s", err)
 	}
@@ -251,7 +251,7 @@ type CreateEpicParams struct {
 }
 
 // CreateEpic ...
-func (c *Client) CreateEpic(params CreateEpicParams) (*Epic, error) {
+func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
 	bodybytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("CreateEpic: could not marshal params, %s", err)
@@ -316,6 +316,25 @@ type UpdateEpicParams struct {
 	StartedAtOverride   *time.Time
 	State               EpicState
 }
+type nullable []struct {
+	in   interface{}
+	out  **json.RawMessage
+	null func() bool
+}
+
+func (n nullable) Do() {
+	for _, f := range n {
+		if !reflect.ValueOf(f.in).IsNil() {
+			var raw json.RawMessage
+			if f.null() {
+				raw = json.RawMessage(`null`)
+			} else {
+				raw, _ = json.Marshal(f.in)
+			}
+			*f.out = &raw
+		}
+	}
+}
 
 // MarshalJSON ...
 func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
@@ -331,56 +350,23 @@ func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
 		State:       p.State,
 	}
 
-	type nullable struct {
-		in     interface{}
-		out    **json.RawMessage
-		isnull func() bool
-	}
-
-	nullables := []nullable{
-		{
-			in:     p.CompletedAtOverride,
-			out:    &out.CompletedAtOverride,
-			isnull: func() bool { return p.CompletedAtOverride.IsZero() },
-		},
-		{
-			in:     p.StartedAtOverride,
-			out:    &out.StartedAtOverride,
-			isnull: func() bool { return p.StartedAtOverride.IsZero() },
-		},
-		{
-			in:     p.Deadline,
-			out:    &out.Deadline,
-			isnull: func() bool { return p.Deadline.IsZero() },
-		},
-		{
-			in:     p.MilestoneID,
-			out:    &out.MilestoneID,
-			isnull: func() bool { return p.MilestoneID == ResetID },
-		},
-	}
-
-	for _, f := range nullables {
-		if !reflect.ValueOf(f.in).IsNil() {
-			var raw json.RawMessage
-			if f.isnull() {
-				raw = json.RawMessage(`null`)
-			} else {
-				raw, _ = json.Marshal(f.in)
-			}
-			*f.out = &raw
-		}
-	}
-
-	if p.MilestoneID != nil {
-		var raw json.RawMessage
-		if p.MilestoneID == ResetID {
-			raw = json.RawMessage(`null`)
-		} else {
-			raw, _ = json.Marshal(p.MilestoneID)
-		}
-		out.MilestoneID = &raw
-	}
+	nullable{{
+		in:   p.CompletedAtOverride,
+		out:  &out.CompletedAtOverride,
+		null: func() bool { return p.CompletedAtOverride.IsZero() },
+	}, {
+		in:   p.StartedAtOverride,
+		out:  &out.StartedAtOverride,
+		null: func() bool { return p.StartedAtOverride.IsZero() },
+	}, {
+		in:   p.Deadline,
+		out:  &out.Deadline,
+		null: func() bool { return p.Deadline.IsZero() },
+	}, {
+		in:   p.MilestoneID,
+		out:  &out.MilestoneID,
+		null: func() bool { return p.MilestoneID == ResetID },
+	}}.Do()
 
 	return json.Marshal(&out)
 }
@@ -403,9 +389,21 @@ type updateEpicParamsResolved struct {
 
 // UpdateEpic ...
 func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
-	// RawMessage might be the thing to use.
-
-	return nil, errors.New("fuck, shit")
+	resource := path.Join("epics", strconv.Itoa(id))
+	bodybytes, err := json.Marshal(&params)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateEpic: could not marshal params, %s", err)
+	}
+	body := bytes.NewBuffer(bodybytes)
+	bytes, err := c.RequestWithBody("PUT", resource, body)
+	if err != nil {
+		return nil, err
+	}
+	epic := Epic{}
+	if err := json.Unmarshal(bytes, &epic); err != nil {
+		return nil, err
+	}
+	return &epic, nil
 }
 
 // DeleteEpic creates an epic
