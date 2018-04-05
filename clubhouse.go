@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -318,7 +319,7 @@ type UpdateEpicParams struct {
 
 // MarshalJSON ...
 func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
-	params := updateEpicParamsResolved{
+	out := updateEpicParamsResolved{
 		Archived:    p.Archived,
 		AfterID:     p.AfterID,
 		BeforeID:    p.BeforeID,
@@ -330,34 +331,45 @@ func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
 		State:       p.State,
 	}
 
-	if p.CompletedAtOverride != nil {
-		var raw json.RawMessage
-		if p.CompletedAtOverride.IsZero() {
-			raw = json.RawMessage(`null`)
-		} else {
-			raw, _ = json.Marshal(p.CompletedAtOverride)
-		}
-		params.CompletedAtOverride = &raw
+	type nullable struct {
+		in     interface{}
+		out    **json.RawMessage
+		isnull func() bool
 	}
 
-	if p.StartedAtOverride != nil {
-		var raw json.RawMessage
-		if p.StartedAtOverride.IsZero() {
-			raw = json.RawMessage(`null`)
-		} else {
-			raw, _ = json.Marshal(p.StartedAtOverride)
-		}
-		params.StartedAtOverride = &raw
+	nullables := []nullable{
+		{
+			in:     p.CompletedAtOverride,
+			out:    &out.CompletedAtOverride,
+			isnull: func() bool { return p.CompletedAtOverride.IsZero() },
+		},
+		{
+			in:     p.StartedAtOverride,
+			out:    &out.StartedAtOverride,
+			isnull: func() bool { return p.StartedAtOverride.IsZero() },
+		},
+		{
+			in:     p.Deadline,
+			out:    &out.Deadline,
+			isnull: func() bool { return p.Deadline.IsZero() },
+		},
+		{
+			in:     p.MilestoneID,
+			out:    &out.MilestoneID,
+			isnull: func() bool { return p.MilestoneID == ResetID },
+		},
 	}
 
-	if p.Deadline != nil {
-		var raw json.RawMessage
-		if p.Deadline.IsZero() {
-			raw = json.RawMessage(`null`)
-		} else {
-			raw, _ = json.Marshal(p.Deadline)
+	for _, f := range nullables {
+		if !reflect.ValueOf(f.in).IsNil() {
+			var raw json.RawMessage
+			if f.isnull() {
+				raw = json.RawMessage(`null`)
+			} else {
+				raw, _ = json.Marshal(f.in)
+			}
+			*f.out = &raw
 		}
-		params.Deadline = &raw
 	}
 
 	if p.MilestoneID != nil {
@@ -367,10 +379,10 @@ func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
 		} else {
 			raw, _ = json.Marshal(p.MilestoneID)
 		}
-		params.MilestoneID = &raw
+		out.MilestoneID = &raw
 	}
 
-	return json.Marshal(&params)
+	return json.Marshal(&out)
 }
 
 type updateEpicParamsResolved struct {
