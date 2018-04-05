@@ -3,12 +3,14 @@ package clubhouse
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"path"
 	"strconv"
+	"time"
 
 	"go.uber.org/ratelimit"
 )
@@ -102,7 +104,6 @@ func Color(c string) *string {
 var ResetColor = Color("")
 
 // Archive status
-var ()
 var (
 	archived   = true
 	unarchived = false
@@ -176,7 +177,7 @@ func (c *Client) DeleteCategory(id int) error {
 	return err
 }
 
-// CreateCategory creates a new category
+// CreateCategory creates a new category.
 func (c *Client) CreateCategory(params CreateCategoryParams) (*Category, error) {
 	if params.Type == "" {
 		params.Type = CategoryTypeMilestone
@@ -197,6 +198,209 @@ func (c *Client) CreateCategory(params CreateCategoryParams) (*Category, error) 
 		return nil, err
 	}
 	return &category, nil
+}
+
+// ListEpics lists all the epics
+func (c *Client) ListEpics() ([]Epic, error) {
+	c.checkSetup()
+	bytes, err := c.Request("GET", "epics")
+	if err != nil {
+		return nil, err
+	}
+	epics := []Epic{}
+	if err := json.Unmarshal(bytes, &epics); err != nil {
+		return nil, err
+	}
+	return epics, nil
+}
+
+// EpicState ...
+type EpicState string
+
+// Time ...
+func Time(t time.Time) *time.Time {
+	return &t
+}
+
+// ResetTime is the sentinel value for indicating that a null value
+// should be sent for a time type.
+var ResetTime = Time(time.Time{})
+
+// Epic State values
+const (
+	EpicStateDone       EpicState = "done"
+	EpicStateInProgress           = "in progress"
+	EpicStateToDo                 = "to do"
+)
+
+// CreateEpicParams ...
+type CreateEpicParams struct {
+	CompletedAtOverride *time.Time          `json:"completed_at_override,omitempty"`
+	CreatedAt           *time.Time          `json:"created_at,omitempty"`
+	Deadline            *time.Time          `json:"deadline,omitempty"`
+	ExternalID          string              `json:"external_id,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	MilestoneID         int                 `json:"milestone_id,omitempty"`
+	Name                string              `json:"name"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	StartedAtOverride   *time.Time          `json:"started_at_override,omitempty"`
+	State               EpicState           `json:"state,omitempty"`
+	UpdatedAt           *time.Time          `json:"updated_at,omitempty"`
+}
+
+// CreateEpic ...
+func (c *Client) CreateEpic(params CreateEpicParams) (*Epic, error) {
+	bodybytes, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("CreateEpic: could not marshal params, %s", err)
+	}
+	body := bytes.NewBuffer(bodybytes)
+	bytes, err := c.RequestWithBody("POST", "epics", body)
+	if err != nil {
+		return nil, err
+	}
+	epic := Epic{}
+	if err := json.Unmarshal(bytes, &epic); err != nil {
+		return nil, err
+	}
+	return &epic, nil
+}
+
+// GetEpic gets an epic by ID
+func (c *Client) GetEpic(id int) (*Epic, error) {
+	c.checkSetup()
+	resource := path.Join("epics", strconv.Itoa(id))
+	bytes, err := c.Request("GET", resource)
+	if err != nil {
+		return nil, err
+	}
+	epic := Epic{}
+	if err := json.Unmarshal(bytes, &epic); err != nil {
+		return nil, err
+	}
+	return &epic, nil
+}
+
+// ID ...
+func ID(id int) *int {
+	return &id
+}
+
+// ResetID is the sentinel value for indicating that a null should be
+// sent for an ID field
+var ResetID = ID(-1)
+
+// String ...
+func String(s string) *string {
+	return &s
+}
+
+// EmptyString is a convenience reference to an empty string.
+var EmptyString = String("")
+
+// UpdateEpicParams ...
+type UpdateEpicParams struct {
+	AfterID             *int
+	Archived            *bool
+	BeforeID            *int
+	CompletedAtOverride *time.Time
+	Deadline            *time.Time
+	Description         *string
+	FollowerIDs         []string
+	Labels              []CreateLabelParams
+	MilestoneID         *int
+	Name                string
+	OwnerIDs            []string
+	StartedAtOverride   *time.Time
+	State               EpicState
+}
+
+// MarshalJSON ...
+func (p *UpdateEpicParams) MarshalJSON() ([]byte, error) {
+	params := updateEpicParamsResolved{
+		Archived:    p.Archived,
+		AfterID:     p.AfterID,
+		BeforeID:    p.BeforeID,
+		Description: p.Description,
+		FollowerIDs: p.FollowerIDs,
+		Labels:      p.Labels,
+		Name:        p.Name,
+		OwnerIDs:    p.OwnerIDs,
+		State:       p.State,
+	}
+
+	if p.CompletedAtOverride != nil {
+		var raw json.RawMessage
+		if p.CompletedAtOverride.IsZero() {
+			raw = json.RawMessage(`null`)
+		} else {
+			raw, _ = json.Marshal(p.CompletedAtOverride)
+		}
+		params.CompletedAtOverride = &raw
+	}
+
+	if p.StartedAtOverride != nil {
+		var raw json.RawMessage
+		if p.StartedAtOverride.IsZero() {
+			raw = json.RawMessage(`null`)
+		} else {
+			raw, _ = json.Marshal(p.StartedAtOverride)
+		}
+		params.StartedAtOverride = &raw
+	}
+
+	if p.Deadline != nil {
+		var raw json.RawMessage
+		if p.Deadline.IsZero() {
+			raw = json.RawMessage(`null`)
+		} else {
+			raw, _ = json.Marshal(p.Deadline)
+		}
+		params.Deadline = &raw
+	}
+
+	if p.MilestoneID != nil {
+		var raw json.RawMessage
+		if p.MilestoneID == ResetID {
+			raw = json.RawMessage(`null`)
+		} else {
+			raw, _ = json.Marshal(p.MilestoneID)
+		}
+		params.MilestoneID = &raw
+	}
+
+	return json.Marshal(&params)
+}
+
+type updateEpicParamsResolved struct {
+	AfterID             *int                `json:"after_id,omitempty"`
+	Archived            *bool               `json:"archived,omitempty"`
+	BeforeID            *int                `json:"before_id,omitempty"`
+	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
+	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
+	State               EpicState           `json:"state,omitempty"`
+}
+
+// UpdateEpic ...
+func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
+	// RawMessage might be the thing to use.
+
+	return nil, errors.New("fuck, shit")
+}
+
+// DeleteEpic creates an epic
+func (c *Client) DeleteEpic(id int) error {
+	resource := path.Join("epics", strconv.Itoa(id))
+	_, err := c.Request("DELETE", resource)
+	return err
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See

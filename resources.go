@@ -95,8 +95,8 @@ type CreateCommentParams struct {
 // CreateLabelParams represents request parameters for creating a Label
 // on a Clubhouse story.
 type CreateLabelParams struct {
-	Color      string `json:"color"`
-	ExternalID string `json:"external_id"`
+	Color      string `json:"color,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
 	Name       string `json:"name"`
 }
 
