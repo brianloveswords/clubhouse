@@ -2,45 +2,28 @@ package clubhouse
 
 import (
 	"encoding/json"
-	"flag"
-	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
-var (
-	check  = flag.Bool("check", false, "check the new snapshots")
-	update = flag.Bool("update", false, "update test snapshot")
-)
-
 func TestListCategories(t *testing.T) {
 	c := makeClient()
-	categories, err := c.ListCategories()
+	_, err := c.ListCategories()
 	if err != nil {
 		t.Error("did not expect error", err)
 	}
-	output := fmt.Sprintf("len: %d; entity type: %s",
-		len(categories), categories[0].EntityType)
-	snapshot(t, "ListCategories", output)
 }
 
 func TestGetCategory(t *testing.T) {
 	c := makeClient()
 	knownID := 17
-	category, err := c.GetCategory(knownID)
+	_, err := c.GetCategory(knownID)
 	if err != nil {
 		t.Error("did not expect error", err)
 	}
-	out := func(c *Category) string {
-		return fmt.Sprintf("name:%#v archived:%#v color:%#v",
-			c.Name, c.Archived, c.Color)
-	}
-	snapshot(t, "GetCategory", out(category))
 }
 
 func TestUpdateCategory(t *testing.T) {
@@ -83,15 +66,6 @@ func TestUpdateCategory(t *testing.T) {
 	if resetColor.Color != "" {
 		t.Error("resetting color didn't take", resetColor.Color)
 	}
-
-	out := func(c *Category) string {
-		return fmt.Sprintf("name:%#v archived:%#v color:%#v",
-			c.Name, c.Archived, c.Color)
-	}
-
-	snapshot(t, "UpdateCategory_newColor", out(newColor))
-	snapshot(t, "UpdateCategory_newArchive", out(newArchive))
-	snapshot(t, "UpdateCategory_resetColor", out(resetColor))
 }
 
 func TestCreateAndDeleteCategory(t *testing.T) {
@@ -397,36 +371,143 @@ func TestCRUDEpicComments(t *testing.T) {
 	})
 }
 
+func TestUpdateFileParams(t *testing.T) {
+	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateFileParams{},
+		Expect: "{}",
+	}, {
+		Name:   "CreatedAt",
+		Params: UpdateFileParams{CreatedAt: &testTime},
+		Expect: `{"created_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Description",
+		Params: UpdateFileParams{Description: String("")},
+		Expect: `{"description":""}`,
+	}, {
+		Name:   "ExternalID",
+		Params: UpdateFileParams{ExternalID: String("some id")},
+		Expect: `{"external_id":"some id"}`,
+	}, {
+		Name:   "Name",
+		Params: UpdateFileParams{Name: String("a name!")},
+		Expect: `{"name":"a name!"}`,
+	}, {
+		Name:   "UpdatedAt",
+		Params: UpdateFileParams{UpdatedAt: &testTime},
+		Expect: `{"updated_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "UploaderID",
+		Params: UpdateFileParams{UploaderID: String("lkajlf")},
+		Expect: `{"uploader_id":"lkajlf"}`,
+	},
+	}.Test(t)
+}
+
+func TestCRUDFiles(t *testing.T) {
+	c := makeClient()
+	f1, err := os.Open("testdata/test-file-1.txt")
+	defer f1.Close()
+	if (err) != nil {
+		t.Fatal("unexpected error opening test-file-1.txt")
+	}
+	f2, err := os.Open("testdata/test-file-2.txt")
+	defer f2.Close()
+	if (err) != nil {
+		t.Fatal("unexpected error opening test-file-2.txt")
+	}
+
+	var files, listed []File
+	t.Run("create", func(t *testing.T) {
+		files, err = c.UploadFiles([]FileUpload{
+			{
+				Name: "test-file-1.txt",
+				File: f1,
+			},
+			{
+				Name: "test-file-2.txt",
+				File: f2,
+			},
+		})
+		if err != nil {
+			t.Fatal("unexpected error uploading file", err)
+		}
+
+		if len(files) < 2 {
+			t.Fatal("expected 2 files, got", len(files))
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		listed, err = c.ListFiles()
+		if err != nil {
+			t.Fatal("unexpected error listing files", err)
+		}
+
+		if len(listed) < 2 {
+			t.Fatal("expected 2 files, got", len(files))
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		file, err := c.GetFile(files[0].ID)
+		if err != nil {
+			t.Fatal("unexpected error getting file by id", err)
+		}
+		if file.Name != "test-file-1.txt" {
+			t.Fatal("expected file name to be test-file-1.txt")
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		file, err := c.UpdateFile(files[0].ID, &UpdateFileParams{
+			Name: String("cranberry"),
+		})
+
+		if err != nil {
+			t.Fatal("error updating name")
+		}
+		if file.Name != "cranberry" {
+			t.Error("expected name to update")
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		for _, f := range listed {
+			if err := c.DeleteFile(f.ID); err != nil {
+				t.Fatal("unexpected error deleting file", err)
+			}
+		}
+	})
+}
+
 /* helpers */
 
-func snapshot(t *testing.T, name string, obj interface{}) {
-	got := fmt.Sprintf("%v", obj)
-	filename := filepath.Join("testdata", name+".snapshot")
-	if *update {
-		fmt.Printf("Updating snapshot %s\n", name)
-		file, err := os.Create(filename)
-		defer file.Close()
-		if err != nil {
-			panic(fmt.Errorf("could not create file %s: %s", name, err))
-		}
-		file.Write([]byte(got))
-		return
-	}
+// func snapshot(t *testing.T, name string, obj interface{}) {
+// 	got := fmt.Sprintf("%v", obj)
+// 	filename := filepath.Join("testdata", name+".snapshot")
+// 	if *update {
+// 		fmt.Printf("Updating snapshot %s\n", name)
+// 		file, err := os.Create(filename)
+// 		defer file.Close()
+// 		if err != nil {
+// 			panic(fmt.Errorf("could not create file %s: %s", name, err))
+// 		}
+// 		file.Write([]byte(got))
+// 		return
+// 	}
 
-	if *check {
-		fmt.Printf("%s: %s\n", name, got)
-		return
-	}
+// 	if *check {
+// 		fmt.Printf("%s: %s\n", name, got)
+// 		return
+// 	}
 
-	expect, err := ioutil.ReadFile(filename)
-	if err != nil {
-		panic(fmt.Errorf("could not read file %s: %s", name, err))
-	}
+// 	expect, err := ioutil.ReadFile(filename)
+// 	if err != nil {
+// 		panic(fmt.Errorf("could not read file %s: %s", name, err))
+// 	}
 
-	if string(expect) != string(got) {
-		t.Errorf("mismatch:\n%s \n!= \n%s", got, expect)
-	}
-}
+// 	if string(expect) != string(got) {
+// 		t.Errorf("mismatch:\n%s \n!= \n%s", got, expect)
+// 	}
+// }
 
 type credentials struct {
 	AuthToken string

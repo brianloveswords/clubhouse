@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"reflect"
@@ -29,6 +31,7 @@ var (
 	ErrSchemaMismatch   = ErrResponse{400, "Schema mismatch"}
 	ErrResourceNotFound = ErrResponse{404, "Resource does not exist"}
 	ErrUnprocessable    = ErrResponse{422, "Unprocessable"}
+	ErrServerError      = ErrResponse{500, "Server error"}
 )
 
 // Defaults
@@ -157,7 +160,7 @@ func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category
 	if err != nil {
 		return nil, fmt.Errorf("UpdateCategory: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("PUT", resource, body)
+	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +188,7 @@ func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error)
 	if err != nil {
 		return nil, fmt.Errorf("CreateCategory: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("POST", "categories", body)
+	bytes, err := c.RequestWithBody("POST", "categories", body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +255,7 @@ func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
 	if err != nil {
 		return nil, fmt.Errorf("CreateEpic: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("POST", "epics", body)
+	bytes, err := c.RequestWithBody("POST", "epics", body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +393,7 @@ func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
 	if err != nil {
 		return nil, fmt.Errorf("UpdateEpic: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("PUT", resource, body)
+	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +418,7 @@ func (c *Client) CreateEpicComment(epicID int, params *CreateCommentParams) (*Th
 	if err != nil {
 		return nil, fmt.Errorf("CreateEpicComment: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("POST", resource, body)
+	bytes, err := c.RequestWithBody("POST", resource, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +443,7 @@ func (c *Client) UpdateEpicComment(
 	if err != nil {
 		return nil, fmt.Errorf("UpdateEpicComment: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("PUT", resource, body)
+	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +468,7 @@ func (c *Client) CreateEpicCommentComment(
 	if err != nil {
 		return nil, fmt.Errorf("CreateEpicCommentComment: could not marshal params, %s", err)
 	}
-	bytes, err := c.RequestWithBody("POST", resource, body)
+	bytes, err := c.RequestWithBody("POST", resource, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -517,10 +520,115 @@ func (c *Client) DeleteEpicComment(epicID, commentID int) error {
 	return err
 }
 
+// FileUpload ...
+type FileUpload struct {
+	Name string
+	File io.Reader
+}
+
+// UploadFiles ...
+func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
+	c.checkSetup()
+	resource := "files"
+	buf := bytes.NewBuffer([]byte{})
+	mp := multipart.NewWriter(buf)
+	for i, f := range fs {
+		p, err := mp.CreateFormFile(fmt.Sprintf("file%d", i), f.Name)
+		if err != nil {
+			return nil, fmt.Errorf("UploadFiles: couldn't create form file, %s", err)
+		}
+		_, err = io.Copy(p, f.File)
+		if err != nil {
+			return nil, fmt.Errorf("UploadFiles: io.Copy error: %s", err)
+		}
+	}
+	ct := mp.FormDataContentType()
+	if err := mp.Close(); err != nil {
+		return nil, fmt.Errorf("UploadFiles: multipart writer close error %s", err)
+	}
+	body := buf.Bytes()
+	header := http.Header{}
+	header.Add("Content-Type", ct)
+	bytes, err := c.RequestWithBody("POST", resource, body, &header)
+	if err != nil {
+		return nil, fmt.Errorf("UploadFiles: error making request: %s", err)
+	}
+	files := []File{}
+	if err := json.Unmarshal(bytes, &files); err != nil {
+		return nil, fmt.Errorf("UploadFiles: error unmarshaling response: %s", err)
+	}
+	return files, nil
+}
+
+// ListFiles ...
+func (c *Client) ListFiles() ([]File, error) {
+	c.checkSetup()
+	resource := "files"
+	bytes, err := c.Request("GET", resource)
+	if err != nil {
+		return nil, fmt.Errorf("ListFiles: error making request: %s", err)
+	}
+	files := []File{}
+	if err := json.Unmarshal(bytes, &files); err != nil {
+		return nil, fmt.Errorf("ListFiles: error unmarshaling response: %s", err)
+	}
+	return files, nil
+}
+
+// GetFile ...
+func (c *Client) GetFile(id int) (*File, error) {
+	resource := path.Join("files", strconv.Itoa(id))
+	bytes, err := c.Request("GET", resource)
+	if err != nil {
+		return nil, fmt.Errorf("GetFile: error making request: %s", err)
+	}
+	file := File{}
+	if err := json.Unmarshal(bytes, &file); err != nil {
+		return nil, fmt.Errorf("GetFile: error unmarshaling response: %s", err)
+	}
+	return &file, nil
+}
+
+// UpdateFileParams ...
+type UpdateFileParams struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ExternalID  *string    `json:"external_id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	UploaderID  *string    `json:"uploader_id,omitempty"`
+}
+
+// UpdateFile ...
+func (c *Client) UpdateFile(id int, params *UpdateFileParams) (*File, error) {
+	resource := path.Join("files", strconv.Itoa(id))
+	body, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateFile: couldn't marshal params %s", err)
+	}
+	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateFile: error making request: %s", err)
+	}
+	file := File{}
+	if err := json.Unmarshal(bytes, &file); err != nil {
+		return nil, fmt.Errorf("UpdateFile: error unmarshaling response: %s", err)
+	}
+	return &file, nil
+}
+
+// DeleteFile ...
+func (c *Client) DeleteFile(id int) error {
+	c.checkSetup()
+	resource := path.Join("files", strconv.Itoa(id))
+	_, err := c.Request("DELETE", resource)
+	return err
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {
-	return c.RequestWithBody(method, endpoint, []byte{})
+	return c.RequestWithBody(method, endpoint, []byte{}, nil)
 }
 
 // ErrClientRequest is returned when the client runs into
@@ -550,11 +658,12 @@ func (e ErrClientRequest) Error() string {
 // type in this package, but also know that you can always use an
 // instance of url.Values.
 //
-// If client is missing APIKey or BaseID, this method will panic.
+// If client is missing AuthToken, this method will panic.
 func (c *Client) RequestWithBody(
 	method string,
 	endpoint string,
 	content []byte,
+	header *http.Header,
 ) ([]byte, error) {
 	var err error
 
@@ -573,7 +682,11 @@ func (c *Client) RequestWithBody(
 		}
 	}
 
-	c.makeHeader(req)
+	if header == nil {
+		header = &http.Header{}
+		header.Add("Content-Type", "application/json")
+	}
+	req.Header = *header
 
 	// Take() will block until we can safely make the next request
 	// without going over the rate limit
@@ -632,11 +745,6 @@ func (c *Client) checkSetup() {
 	if c.Limiter == nil {
 		c.Limiter = DefaultLimiter
 	}
-}
-
-func (c *Client) makeHeader(r *http.Request) {
-	r.Header = http.Header{}
-	r.Header.Add("Content-Type", "application/json")
 }
 
 func (c *Client) makeURL(resource string) string {
