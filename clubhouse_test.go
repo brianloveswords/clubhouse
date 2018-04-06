@@ -10,6 +10,44 @@ import (
 	"time"
 )
 
+var testTimeString = "2018-04-20T16:20:00+04:00"
+var testTime, _ = time.Parse(time.RFC3339, testTimeString)
+var memberUUID string
+
+func TestMain(m *testing.M) {
+	// FIXME: once stories are implemented the safeguard should be "more
+	// than 0 stories"
+	c := makeClient()
+	members, err := c.ListMembers()
+	if err != nil {
+		log.Fatalf("couldn't get member list %s", err)
+	}
+	var (
+		activemembers = Members{}
+		names         = []string{}
+		namelist      string
+	)
+	for _, m := range members {
+		if m.Disabled {
+			continue
+		}
+		activemembers = append(activemembers, m)
+		names = append(names, "\t- "+m.Profile.MentionName)
+	}
+
+	if len(activemembers) > 1 {
+		log.Fatalf(`
+**SAFETY GUARD**
+Refusing to continue on Clubhouse with more than 1 active member.
+Member count: %d
+Member list:
+%v`, len(members), namelist)
+	}
+
+	memberUUID = members[0].ID
+	m.Run()
+}
+
 func TestCreateCategoryParams(t *testing.T) {
 	fieldtest{{
 		Name:   "empty",
@@ -124,7 +162,6 @@ func TestCRUDCategories(t *testing.T) {
 }
 
 func TestUpdateEpicParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
 	fieldtest{{
 		Name:   "empty",
 		Params: UpdateEpicParams{},
@@ -287,7 +324,6 @@ func TestCRUDEpics(t *testing.T) {
 }
 
 func TestCreateCommentParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
 	fieldtest{{
 		Name:   "empty",
 		Params: CreateCommentParams{},
@@ -398,7 +434,6 @@ func TestCRUDEpicComments(t *testing.T) {
 }
 
 func TestUpdateFileParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
 	fieldtest{{
 		Name:   "empty",
 		Params: UpdateFileParams{},
@@ -629,7 +664,6 @@ func TestReadMembers(t *testing.T) {
 }
 
 func TestCreateMilestoneParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
 	fieldtest{{
 		Name:   "empty",
 		Params: CreateMilestoneParams{},
@@ -662,7 +696,6 @@ func TestCreateMilestoneParams(t *testing.T) {
 }
 
 func TestUpdateMilestoneParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
 	fieldtest{{
 		Name:   "empty",
 		Params: UpdateMilestoneParams{},
@@ -765,7 +798,188 @@ func TestCRUDMilestones(t *testing.T) {
 	})
 }
 
-// func TestCRUDMilestone(t *testing.T) {
+func TestCreateProjectParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateProjectParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "Abbreviation",
+		Params: CreateProjectParams{Abbreviation: "MFM"},
+		Expect: `{"abbreviation":"MFM"}`,
+	}, {
+		Name:   "Color",
+		Params: CreateProjectParams{Color: "green"},
+		Expect: `{"color":"green"}`,
+	}, {
+		Name:   "CreatedAt",
+		Params: CreateProjectParams{CreatedAt: &testTime},
+		Expect: `{"created_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Description",
+		Params: CreateProjectParams{Description: "desc"},
+		Expect: `{"description":"desc"}`,
+	}, {
+		Name:   "ExternalID",
+		Params: CreateProjectParams{ExternalID: "extid"},
+		Expect: `{"external_id":"extid"}`,
+	}, {
+		Name:   "FollowerIDs",
+		Params: CreateProjectParams{FollowerIDs: []string{"hey"}},
+		Expect: `{"follower_ids":["hey"]}`,
+	}, {
+		Name:   "IterationLength",
+		Params: CreateProjectParams{IterationLength: 4},
+		Expect: `{"iteration_length":4}`,
+	}, {
+		Name:   "Name",
+		Params: CreateProjectParams{Name: "darcy"},
+		Expect: `{"name":"darcy"}`,
+	}, {
+		Name:   "StartTime",
+		Params: CreateProjectParams{StartTime: &testTime},
+		Expect: `{"start_time":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "TeamID",
+		Params: CreateProjectParams{TeamID: 13},
+		Expect: `{"team_id":13}`,
+	}, {
+		Name:   "UpdatedAt",
+		Params: CreateProjectParams{UpdatedAt: &testTime},
+		Expect: `{"updated_at":"2018-04-20T16:20:00+04:00"}`,
+	}}.Test(t)
+}
+
+func TestUpdateProjectParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateProjectParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "Abbreviation",
+		Params: UpdateProjectParams{Abbreviation: String("MFM")},
+		Expect: `{"abbreviation":"MFM"}`,
+	}, {
+		Name:   "Color",
+		Params: UpdateProjectParams{Color: String("green")},
+		Expect: `{"color":"green"}`,
+	}, {
+		Name:   "DaysToThermometer",
+		Params: UpdateProjectParams{DaysToThermometer: Int(10)},
+		Expect: `{"days_to_thermometer":10}`,
+	}, {
+		Name:   "Description",
+		Params: UpdateProjectParams{Description: String("desc")},
+		Expect: `{"description":"desc"}`,
+	}, {
+		Name:   "FollowerIDs",
+		Params: UpdateProjectParams{FollowerIDs: []string{"hey"}},
+		Expect: `{"follower_ids":["hey"]}`,
+	}, {
+		Name:   "Name",
+		Params: UpdateProjectParams{Name: String("darcy")},
+		Expect: `{"name":"darcy"}`,
+	}, {
+		Name:   "ShowThermometer",
+		Params: UpdateProjectParams{ShowThermometer: HideThermometer},
+		Expect: `{"show_thermometer":false}`,
+	}, {
+		Name:   "TeamID",
+		Params: UpdateProjectParams{TeamID: ID(13)},
+		Expect: `{"team_id":13}`,
+	}}.Test(t)
+}
+
+func TestCRUDProjects(t *testing.T) {
+	var (
+		err      error
+		project  *Project
+		projects []Project
+
+		c      = makeClient()
+		params = &CreateProjectParams{
+			Abbreviation:    "MFM",
+			Color:           "chartruese",
+			CreatedAt:       &testTime,
+			Description:     "the description",
+			ExternalID:      "extID",
+			FollowerIDs:     []string{memberUUID},
+			IterationLength: 4,
+			Name:            fmt.Sprintf("project %v", time.Now()),
+			StartTime:       &testTime,
+			UpdatedAt:       &testTime,
+		}
+	)
+	project, err = c.CreateProject(params)
+	if err != nil {
+		t.Fatal("did not expect error", err)
+	}
+	t.Run("create", func(t *testing.T) {
+		if project.Description != params.Description {
+			t.Error("description is wrong, got", project.Description)
+		}
+		if project.Abbreviation != params.Abbreviation {
+			t.Error("abbreviation is wrong, got", project.Abbreviation)
+		}
+		if project.Color != params.Color {
+			t.Error("color is wrong, got", project.Color)
+		}
+		if project.ExternalID != params.ExternalID {
+			t.Error("externalid is wrong, got", project.ExternalID)
+		}
+		if project.FollowerIDs[0] != params.FollowerIDs[0] {
+			t.Error("followerids is wrong, got", project.FollowerIDs)
+		}
+		if project.IterationLength != params.IterationLength {
+			t.Error("iteration length is wrong, got", project.IterationLength)
+		}
+		if !project.CreatedAt.Equal(*params.CreatedAt) {
+			t.Error("createdat is wrong, got", project.CreatedAt)
+		}
+		if !project.StartTime.Equal(*params.StartTime) {
+			t.Error("startime is wrong, got", project.StartTime)
+		}
+		if !project.UpdatedAt.Equal(*params.UpdatedAt) {
+			t.Error("updatedat is wrong, got", project.UpdatedAt)
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		getproject, err := c.GetProject(project.ID)
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+		if getproject.Name != project.Name {
+			t.Error("name didn't stick")
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		projects, err = c.ListProjects()
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		updated, err := c.UpdateProject(project.ID, &UpdateProjectParams{
+			Description: String("a new description"),
+		})
+		if err != nil {
+			fmt.Println(err)
+			t.Fatal("did not expect error")
+		}
+		if updated.Description != "a new description" {
+			t.Error("description reset didn't work")
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		for _, l := range projects {
+			if err := c.DeleteProject(l.ID); err != nil {
+				t.Fatal("did not expect error deleting project", err)
+			}
+		}
+	})
+}
+
+// func TestCRUDProject(t *testing.T) {
 // 	t.Run("create", func(t *testing.T){})
 // 	t.Run("read", func(t *testing.T){})
 // 	t.Run("list", func(t *testing.T){})

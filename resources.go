@@ -678,6 +678,50 @@ type Project struct {
 	UpdatedAt         time.Time    `json:"updated_at"`
 }
 
+// MakeURL ...
+func (p Project) MakeURL() string {
+	if p.ID == 0 {
+		return "projects"
+	}
+	return path.Join("projects", strconv.Itoa(p.ID))
+}
+
+// Projects ...
+type Projects []Project
+
+// MakeURL ...
+func (p Projects) MakeURL() string {
+	return "projects"
+}
+
+// CreateProjectParams ...
+type CreateProjectParams struct {
+	Abbreviation    string     `json:"abbreviation,omitempty"`
+	Color           string     `json:"color,omitempty"`
+	CreatedAt       *time.Time `json:"created_at,omitempty"`
+	Description     string     `json:"description,omitempty"`
+	ExternalID      string     `json:"external_id,omitempty"`
+	FollowerIDs     []string   `json:"follower_ids,omitempty"`
+	IterationLength int        `json:"iteration_length,omitempty"`
+	Name            string     `json:"name,omitempty"`
+	StartTime       *time.Time `json:"start_time,omitempty"`
+	TeamID          int        `json:"team_id,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+}
+
+// UpdateProjectParams ...
+type UpdateProjectParams struct {
+	Abbreviation      *string  `json:"abbreviation,omitempty"`
+	Archived          *bool    `json:"archived,omitempty"`
+	Color             *string  `json:"color,omitempty"`
+	DaysToThermometer *int     `json:"days_to_thermometer,omitempty"`
+	Description       *string  `json:"description,omitempty"`
+	FollowerIDs       []string `json:"follower_ids,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	ShowThermometer   *bool    `json:"show_thermometer,omitempty"`
+	TeamID            *int     `json:"team_id,omitempty"`
+}
+
 // ProjectStats represents a group of calculated values for an Project.
 type ProjectStats struct {
 	NumPoints  int `json:"num_points"`

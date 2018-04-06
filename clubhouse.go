@@ -70,6 +70,11 @@ func ID(id int) *int {
 	return &id
 }
 
+// Int ...
+func Int(i int) *int {
+	return &i
+}
+
 // Time is a convenience function for getting a pointer to a time.Time
 // from an expression
 func Time(t time.Time) *time.Time {
@@ -78,15 +83,17 @@ func Time(t time.Time) *time.Time {
 
 // TODO: fill out docs
 var (
-	Archived    = &archived
-	Unarchived  = &unarchived
-	ResetID     = ID(-1)
-	ResetTime   = Time(time.Time{})
-	ResetColor  = String("")
-	EmptyString = String("")
+	Archived        = &ptrue
+	Unarchived      = &pfalse
+	ShowThermometer = &ptrue
+	HideThermometer = &pfalse
+	ResetID         = ID(-1)
+	ResetTime       = Time(time.Time{})
+	ResetColor      = String("")
+	EmptyString     = String("")
 
-	archived   = true
-	unarchived = false
+	ptrue  = true
+	pfalse = false
 )
 
 // Client represents a Clubhouse API client
@@ -439,6 +446,52 @@ func (c *Client) UpdateMilestone(id int, params *UpdateMilestoneParams) (*Milest
 		return nil, err
 	}
 	return &milestone, nil
+}
+
+// ListProjects ...
+func (c *Client) ListProjects() (Projects, error) {
+	projects := Projects{}
+	err := c.getResource(&projects)
+	if err != nil {
+		return nil, err
+	}
+	return projects, nil
+}
+
+// CreateProject ...
+func (c *Client) CreateProject(params *CreateProjectParams) (*Project, error) {
+	project := Project{}
+	err := c.createResource(&project, params)
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+// GetProject ...
+func (c *Client) GetProject(id int) (*Project, error) {
+	project := Project{ID: id}
+	err := c.getResource(&project)
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+// DeleteProject ...
+func (c *Client) DeleteProject(id int) error {
+	project := Project{ID: id}
+	return c.deleteResource(&project)
+}
+
+// UpdateProject ...
+func (c *Client) UpdateProject(id int, params *UpdateProjectParams) (*Project, error) {
+	project := Project{ID: id}
+	err := c.updateResource(&project, params)
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See
