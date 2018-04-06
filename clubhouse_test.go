@@ -502,6 +502,129 @@ func TestCRUDFiles(t *testing.T) {
 	})
 }
 
+func TestCreateLabelParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateLabelParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "Name",
+		Params: CreateLabelParams{Name: "elvis"},
+		Expect: `{"name":"elvis"}`,
+	}, {
+		Name:   "Color",
+		Params: CreateLabelParams{Color: "red"},
+		Expect: `{"color":"red"}`,
+	}, {
+		Name:   "ExternalID",
+		Params: CreateLabelParams{ExternalID: "external"},
+		Expect: `{"external_id":"external"}`,
+	},
+	}.Test(t)
+}
+
+func TestUpdateLabelParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateLabelParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "Name",
+		Params: UpdateLabelParams{Name: String("elvis")},
+		Expect: `{"name":"elvis"}`,
+	}, {
+		Name:   "Color",
+		Params: UpdateLabelParams{Color: String("red")},
+		Expect: `{"color":"red"}`,
+	}, {
+		Name:   "Color: reset",
+		Params: UpdateLabelParams{Color: ResetColor},
+		Expect: `{"color":null}`,
+	}, {
+		Name:   "Archived",
+		Params: UpdateLabelParams{Archived: Archived},
+		Expect: `{"archived":true}`,
+	},
+	}.Test(t)
+}
+
+func TestCRUDLabels(t *testing.T) {
+	var (
+		c      = makeClient()
+		err    error
+		label  *Label
+		labels []Label
+	)
+	t.Run("create", func(t *testing.T) {
+		label, err = c.CreateLabel(&CreateLabelParams{
+			Color:      "crayon",
+			ExternalID: "the id",
+			Name:       fmt.Sprintf("%v", time.Now()),
+		})
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		if label == nil {
+			t.Fatal("create must have failed")
+		}
+		getlabel, err := c.GetLabel(label.ID)
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+		if getlabel.Name != label.Name {
+			t.Error("name didn't stick")
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		if label == nil {
+			t.Fatal("create must have failed")
+		}
+		labels, err = c.ListLabels()
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		if label == nil {
+			t.Fatal("create must have failed")
+		}
+		uplabel, err := c.UpdateLabel(label.ID, &UpdateLabelParams{
+			Color:    ResetColor,
+			Archived: Archived,
+		})
+		if err != nil {
+			fmt.Println(err)
+			t.Fatal("did not expect error")
+		}
+		if uplabel.Color != "" {
+			t.Error("color reset didn't work")
+		}
+		if !uplabel.Archived {
+			t.Error("archived update didn't work")
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		if label == nil {
+			t.Fatal("create must have failed")
+		}
+		for _, l := range labels {
+			if err := c.DeleteLabel(l.ID); err != nil {
+				t.Fatal("did not expect error deleting label")
+			}
+		}
+	})
+}
+
+// func TestCRUDLabels(t *testing.T) {
+// 	t.Run("create", func(t *testing.T){})
+// 	t.Run("read", func(t *testing.T){})
+// 	t.Run("list", func(t *testing.T){})
+// 	t.Run("update", func(t *testing.T){})
+// 	t.Run("delete", func(t *testing.T){})
+// }
+
 /* helpers */
 
 // func snapshot(t *testing.T, name string, obj interface{}) {

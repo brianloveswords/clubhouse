@@ -108,46 +108,6 @@ type Client struct {
 	Limiter    ratelimit.Limiter
 }
 
-// UpdateCategoryParams contains the parameters for UpdateCategory
-// requests.
-type UpdateCategoryParams struct {
-	Archived *bool
-	Color    *string
-	Name     *string
-}
-type updateCategoryParamsResolved struct {
-	Archived *bool            `json:"archived,omitempty"`
-	Color    *json.RawMessage `json:"color,omitempty"`
-	Name     *string          `json:"name,omitempty"`
-}
-
-// MarshalJSON ...
-func (p UpdateCategoryParams) MarshalJSON() ([]byte, error) {
-	out := updateCategoryParamsResolved{
-		Archived: p.Archived,
-		Name:     p.Name,
-	}
-	nullable{{
-		in:   p.Color,
-		out:  &out.Color,
-		null: func() bool { return p.Color == ResetColor },
-	}}.Do()
-	return json.Marshal(&out)
-}
-
-// Resource ...
-type Resource interface {
-	MakeURL() string
-}
-
-// Categories is a Category slice
-type Categories []Category
-
-// MakeURL ...
-func (c *Categories) MakeURL() string {
-	return "categories"
-}
-
 // ListCategories returns a list of all categories and their attributes
 func (c *Client) ListCategories() (Categories, error) {
 	categories := Categories{}
@@ -377,6 +337,52 @@ func (c *Client) UpdateFile(id int, params *UpdateFileParams) (*File, error) {
 func (c *Client) DeleteFile(id int) error {
 	file := File{ID: id}
 	return c.deleteResource(&file)
+}
+
+// CreateLabel ...
+func (c *Client) CreateLabel(params *CreateLabelParams) (*Label, error) {
+	label := Label{}
+	err := c.createResource(&label, params)
+	if err != nil {
+		return nil, err
+	}
+	return &label, nil
+}
+
+// GetLabel ...
+func (c *Client) GetLabel(id int) (*Label, error) {
+	label := Label{ID: id}
+	err := c.getResource(&label)
+	if err != nil {
+		return nil, err
+	}
+	return &label, nil
+}
+
+// DeleteLabel ...
+func (c *Client) DeleteLabel(id int) error {
+	label := Label{ID: id}
+	return c.deleteResource(&label)
+}
+
+// UpdateLabel ...
+func (c *Client) UpdateLabel(id int, params *UpdateLabelParams) (*Label, error) {
+	label := Label{ID: id}
+	err := c.updateResource(&label, params)
+	if err != nil {
+		return nil, err
+	}
+	return &label, nil
+}
+
+// ListLabels ...
+func (c *Client) ListLabels() (Labels, error) {
+	labels := Labels{}
+	err := c.getResource(&labels)
+	if err != nil {
+		return nil, err
+	}
+	return labels, nil
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See

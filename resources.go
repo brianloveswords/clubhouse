@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// Resource ...
+type Resource interface {
+	MakeURL() string
+}
+
 // See https://clubhouse.io/api/rest/v2/#Resources for complete
 // documentation
 
@@ -45,6 +50,14 @@ func (c *Category) MakeURL() string {
 		return "categories"
 	}
 	return path.Join("categories", strconv.Itoa(c.ID))
+}
+
+// Categories is a Category slice
+type Categories []Category
+
+// MakeURL ...
+func (c *Categories) MakeURL() string {
+	return "categories"
 }
 
 // Comment is any note added within the Comment field of a Story.
@@ -95,6 +108,33 @@ type CreateCategoryParams struct {
 	Type       CategoryType `json:"type,omitempty"`
 }
 
+// UpdateCategoryParams contains the parameters for UpdateCategory
+// requests.
+type UpdateCategoryParams struct {
+	Archived *bool
+	Color    *string
+	Name     *string
+}
+type updateCategoryParamsResolved struct {
+	Archived *bool            `json:"archived,omitempty"`
+	Color    *json.RawMessage `json:"color,omitempty"`
+	Name     *string          `json:"name,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateCategoryParams) MarshalJSON() ([]byte, error) {
+	out := updateCategoryParamsResolved{
+		Archived: p.Archived,
+		Name:     p.Name,
+	}
+	nullable{{
+		in:   p.Color,
+		out:  &out.Color,
+		null: func() bool { return p.Color == ResetColor },
+	}}.Do()
+	return json.Marshal(&out)
+}
+
 // CreateCommentParams represents request parameters for creating a
 // Comment on a Clubhouse Story.
 type CreateCommentParams struct {
@@ -108,14 +148,6 @@ type CreateCommentParams struct {
 // UpdateCommentParams ...
 type UpdateCommentParams struct {
 	Text string `json:"text"`
-}
-
-// CreateLabelParams represents request parameters for creating a Label
-// on a Clubhouse story.
-type CreateLabelParams struct {
-	Color      string `json:"color,omitempty"`
-	ExternalID string `json:"external_id,omitempty"`
-	Name       string `json:"name"`
 }
 
 // StoryVerb represents the verb connecting two stories together
@@ -398,6 +430,56 @@ type Label struct {
 	Name       string     `json:"name"`
 	Stats      LabelStats `json:"stats"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// MakeURL ...
+func (l Label) MakeURL() string {
+	if l.ID == 0 {
+		return "labels"
+	}
+	return path.Join("labels", strconv.Itoa(l.ID))
+}
+
+// Labels ...
+type Labels []Label
+
+// MakeURL ...
+func (l Labels) MakeURL() string {
+	return "labels"
+}
+
+// CreateLabelParams represents request parameters for creating a Label
+// on a Clubhouse story.
+type CreateLabelParams struct {
+	Color      string `json:"color,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
+	Name       string `json:"name,omitempty"`
+}
+
+// UpdateLabelParams ...
+type UpdateLabelParams struct {
+	Archived *bool
+	Color    *string
+	Name     *string
+}
+type updateLabelParamsResolved struct {
+	Archived *bool            `json:"archived,omitempty"`
+	Color    *json.RawMessage `json:"color,omitempty"`
+	Name     *string          `json:"name,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateLabelParams) MarshalJSON() ([]byte, error) {
+	out := updateLabelParamsResolved{
+		Archived: p.Archived,
+		Name:     p.Name,
+	}
+	nullable{{
+		in:   p.Color,
+		out:  &out.Color,
+		null: func() bool { return p.Color == ResetColor },
+	}}.Do()
+	return json.Marshal(&out)
 }
 
 // LabelStats represents a group of calculated values for a Label.
