@@ -2,6 +2,7 @@ package clubhouse
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -67,13 +68,14 @@ func TestCRUDCategories(t *testing.T) {
 		cats []Category
 		err  error
 	)
-	t.Run("create", func(t *testing.T) {
+	t.Run("create", func(_ *testing.T) {
 		cat, err = c.CreateCategory(&CreateCategoryParams{
-			Name:  "Hammes Fistkicker",
+			Name:  fmt.Sprintf("%v", time.Now()),
 			Color: "powerful",
 		})
 		if err != nil {
-			t.Fatal("did not expect error", err)
+			fmt.Println(err)
+			t.Fatal("did not expect error")
 		}
 	})
 	t.Run("read", func(t *testing.T) {
@@ -203,36 +205,6 @@ func TestUpdateEpicParams(t *testing.T) {
 	}}.Test(t)
 }
 
-func TestCreateCommentParams(t *testing.T) {
-	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
-	fieldtest{{
-		Name:   "empty",
-		Params: CreateCommentParams{},
-		Expect: "{}",
-	}, {
-		Name:   "AuthorID",
-		Params: CreateCommentParams{AuthorID: "some author id"},
-		Expect: `{"author_id":"some author id"}`,
-	}, {
-		Name:   "CreatedAt",
-		Params: CreateCommentParams{CreatedAt: &testTime},
-		Expect: `{"created_at":"2018-04-20T16:20:00+04:00"}`,
-	}, {
-		Name:   "ExternalID",
-		Params: CreateCommentParams{ExternalID: "extid"},
-		Expect: `{"external_id":"extid"}`,
-	}, {
-		Name:   "Text",
-		Params: CreateCommentParams{Text: "angry comment"},
-		Expect: `{"text":"angry comment"}`,
-	}, {
-		Name:   "UpdatedAt",
-		Params: CreateCommentParams{UpdatedAt: &testTime},
-		Expect: `{"updated_at":"2018-04-20T16:20:00+04:00"}`,
-	},
-	}.Test(t)
-}
-
 func TestCRUDEpics(t *testing.T) {
 	var (
 		c      = makeClient()
@@ -311,6 +283,36 @@ func TestCRUDEpics(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCreateCommentParams(t *testing.T) {
+	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateCommentParams{},
+		Expect: "{}",
+	}, {
+		Name:   "AuthorID",
+		Params: CreateCommentParams{AuthorID: "some author id"},
+		Expect: `{"author_id":"some author id"}`,
+	}, {
+		Name:   "CreatedAt",
+		Params: CreateCommentParams{CreatedAt: &testTime},
+		Expect: `{"created_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "ExternalID",
+		Params: CreateCommentParams{ExternalID: "extid"},
+		Expect: `{"external_id":"extid"}`,
+	}, {
+		Name:   "Text",
+		Params: CreateCommentParams{Text: "angry comment"},
+		Expect: `{"text":"angry comment"}`,
+	}, {
+		Name:   "UpdatedAt",
+		Params: CreateCommentParams{UpdatedAt: &testTime},
+		Expect: `{"updated_at":"2018-04-20T16:20:00+04:00"}`,
+	},
+	}.Test(t)
 }
 
 func TestCRUDEpicComments(t *testing.T) {

@@ -1,6 +1,11 @@
 package clubhouse
 
-import "time"
+import (
+	"encoding/json"
+	"path"
+	"strconv"
+	"time"
+)
 
 // See https://clubhouse.io/api/rest/v2/#Resources for complete
 // documentation
@@ -32,6 +37,14 @@ type Category struct {
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`
 	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// MakeURL ...
+func (c *Category) MakeURL() string {
+	if c.ID == 0 && c.Name == "" {
+		return "categories"
+	}
+	return path.Join("categories", strconv.Itoa(c.ID))
 }
 
 // Comment is any note added within the Comment field of a Story.
@@ -199,6 +212,105 @@ type Epic struct {
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
+// MakeURL ...
+func (e *Epic) MakeURL() string {
+	if e.ID == 0 && e.Name == "" {
+		return "epics"
+	}
+	return path.Join("epics", strconv.Itoa(e.ID))
+}
+
+// Epics ...
+type Epics []Epic
+
+// MakeURL ...
+func (e Epics) MakeURL() string {
+	return "epics"
+}
+
+// CreateEpicParams ...
+type CreateEpicParams struct {
+	CompletedAtOverride *time.Time          `json:"completed_at_override,omitempty"`
+	CreatedAt           *time.Time          `json:"created_at,omitempty"`
+	Deadline            *time.Time          `json:"deadline,omitempty"`
+	ExternalID          string              `json:"external_id,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	MilestoneID         int                 `json:"milestone_id,omitempty"`
+	Name                string              `json:"name"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	StartedAtOverride   *time.Time          `json:"started_at_override,omitempty"`
+	State               EpicState           `json:"state,omitempty"`
+	UpdatedAt           *time.Time          `json:"updated_at,omitempty"`
+}
+
+// UpdateEpicParams ...
+type UpdateEpicParams struct {
+	AfterID             *int
+	Archived            *bool
+	BeforeID            *int
+	CompletedAtOverride *time.Time
+	Deadline            *time.Time
+	Description         *string
+	FollowerIDs         []string
+	Labels              []CreateLabelParams
+	MilestoneID         *int
+	Name                string
+	OwnerIDs            []string
+	StartedAtOverride   *time.Time
+	State               EpicState
+}
+type updateEpicParamsResolved struct {
+	AfterID             *int                `json:"after_id,omitempty"`
+	Archived            *bool               `json:"archived,omitempty"`
+	BeforeID            *int                `json:"before_id,omitempty"`
+	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
+	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
+	State               EpicState           `json:"state,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateEpicParams) MarshalJSON() ([]byte, error) {
+	out := updateEpicParamsResolved{
+		Archived:    p.Archived,
+		AfterID:     p.AfterID,
+		BeforeID:    p.BeforeID,
+		Description: p.Description,
+		FollowerIDs: p.FollowerIDs,
+		Labels:      p.Labels,
+		Name:        p.Name,
+		OwnerIDs:    p.OwnerIDs,
+		State:       p.State,
+	}
+
+	nullable{{
+		in:   p.CompletedAtOverride,
+		out:  &out.CompletedAtOverride,
+		null: func() bool { return p.CompletedAtOverride.IsZero() },
+	}, {
+		in:   p.StartedAtOverride,
+		out:  &out.StartedAtOverride,
+		null: func() bool { return p.StartedAtOverride.IsZero() },
+	}, {
+		in:   p.Deadline,
+		out:  &out.Deadline,
+		null: func() bool { return p.Deadline.IsZero() },
+	}, {
+		in:   p.MilestoneID,
+		out:  &out.MilestoneID,
+		null: func() bool { return p.MilestoneID == ResetID },
+	}}.Do()
+
+	return json.Marshal(&out)
+}
+
 // EpicStats represents a group of calculated values for an Epic.
 type EpicStats struct {
 	LastStoryUpdate       time.Time `json:"last_story_update"`
@@ -229,6 +341,32 @@ type File struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 	UploaderID   string    `json:"uploader_id"`
 	URL          string    `json:"url"`
+}
+
+// UpdateFileParams ...
+type UpdateFileParams struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ExternalID  *string    `json:"external_id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	UploaderID  *string    `json:"uploader_id,omitempty"`
+}
+
+// MakeURL ...
+func (f File) MakeURL() string {
+	if f.ID == 0 {
+		return "files"
+	}
+	return path.Join("files", strconv.Itoa(f.ID))
+}
+
+// Files ...
+type Files []File
+
+// MakeURL ...
+func (f Files) MakeURL() string {
+	return "files"
 }
 
 // Icon is used to attach images to Organizations, Members, and Loading
@@ -561,6 +699,7 @@ type Team struct {
 
 // ThreadedComment represents Comments associated with Epic Discussions.
 type ThreadedComment struct {
+	parent     Resource
 	AuthorID   string            `json:"author_id"`
 	Comments   []ThreadedComment `json:"comments"`
 	CreatedAt  time.Time         `json:"created_at"`
@@ -572,6 +711,18 @@ type ThreadedComment struct {
 	Text       string            `json:"text"`
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
+
+// MakeURL ...
+func (c ThreadedComment) MakeURL() string {
+	base := c.parent.MakeURL()
+	if c.ID == 0 {
+		return path.Join(base, "comments")
+	}
+	return path.Join(base, "comments", strconv.Itoa(c.ID))
+}
+
+// ThreadedComments ...
+type ThreadedComments []ThreadedComment
 
 // TypedStoryLink represents the type of Story Link. The string can be
 // subject or object.

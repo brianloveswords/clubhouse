@@ -135,14 +135,23 @@ func (p UpdateCategoryParams) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&out)
 }
 
+// Resource ...
+type Resource interface {
+	MakeURL() string
+}
+
+// Categories is a Category slice
+type Categories []Category
+
+// MakeURL ...
+func (c *Categories) MakeURL() string {
+	return "categories"
+}
+
 // ListCategories returns a list of all categories and their attributes
-func (c *Client) ListCategories() ([]Category, error) {
-	bytes, err := c.Request("GET", "categories")
-	if err != nil {
-		return nil, err
-	}
-	categories := []Category{}
-	if err := json.Unmarshal(bytes, &categories); err != nil {
+func (c *Client) ListCategories() (Categories, error) {
+	categories := Categories{}
+	if err := c.getResource(&categories); err != nil {
 		return nil, err
 	}
 	return categories, nil
@@ -150,13 +159,8 @@ func (c *Client) ListCategories() ([]Category, error) {
 
 // GetCategory returns information about the selected category
 func (c *Client) GetCategory(id int) (*Category, error) {
-	resource := path.Join("categories", strconv.Itoa(id))
-	bytes, err := c.Request("GET", resource)
-	if err != nil {
-		return nil, err
-	}
-	category := Category{}
-	if err := json.Unmarshal(bytes, &category); err != nil {
+	category := Category{ID: id}
+	if err := c.getResource(&category); err != nil {
 		return nil, err
 	}
 	return &category, nil
@@ -166,17 +170,8 @@ func (c *Client) GetCategory(id int) (*Category, error) {
 // name. If you try to name a Category something that already exists,
 // you will get an ErrUnprocessable error.
 func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category, error) {
-	resource := path.Join("categories", strconv.Itoa(id))
-	body, err := json.Marshal(&params)
-	if err != nil {
-		return nil, fmt.Errorf("UpdateCategory: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
-	if err != nil {
-		return nil, err
-	}
-	category := Category{}
-	if err := json.Unmarshal(bytes, &category); err != nil {
+	category := Category{ID: id}
+	if err := c.updateResource(&category, params); err != nil {
 		return nil, err
 	}
 	return &category, nil
@@ -184,72 +179,36 @@ func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category
 
 // DeleteCategory deletes a category
 func (c *Client) DeleteCategory(id int) error {
-	resource := path.Join("categories", strconv.Itoa(id))
-	_, err := c.Request("DELETE", resource)
-	return err
+	category := Category{ID: id}
+	return c.deleteResource(&category)
 }
 
-// CreateCategory creates a new category.
+// CreateCategory creates a new category. If Category is given a name
+// that already exists, you will get an ErrUnprocessable error.
 func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error) {
 	if params.Type == "" {
 		params.Type = CategoryTypeMilestone
 	}
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("CreateCategory: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("POST", "categories", body, nil)
-	if err != nil {
-		return nil, err
-	}
 	category := Category{}
-	if err := json.Unmarshal(bytes, &category); err != nil {
+	if err := c.createResource(&category, params); err != nil {
 		return nil, err
 	}
 	return &category, nil
 }
 
 // ListEpics lists all the epics
-func (c *Client) ListEpics() ([]Epic, error) {
-	bytes, err := c.Request("GET", "epics")
-	if err != nil {
-		return nil, err
-	}
-	epics := []Epic{}
-	if err := json.Unmarshal(bytes, &epics); err != nil {
+func (c *Client) ListEpics() (Epics, error) {
+	epics := Epics{}
+	if err := c.getResource(&epics); err != nil {
 		return nil, err
 	}
 	return epics, nil
 }
 
-// CreateEpicParams ...
-type CreateEpicParams struct {
-	CompletedAtOverride *time.Time          `json:"completed_at_override,omitempty"`
-	CreatedAt           *time.Time          `json:"created_at,omitempty"`
-	Deadline            *time.Time          `json:"deadline,omitempty"`
-	ExternalID          string              `json:"external_id,omitempty"`
-	FollowerIDs         []string            `json:"follower_ids,omitempty"`
-	Labels              []CreateLabelParams `json:"labels,omitempty"`
-	MilestoneID         int                 `json:"milestone_id,omitempty"`
-	Name                string              `json:"name"`
-	OwnerIDs            []string            `json:"owner_ids,omitempty"`
-	StartedAtOverride   *time.Time          `json:"started_at_override,omitempty"`
-	State               EpicState           `json:"state,omitempty"`
-	UpdatedAt           *time.Time          `json:"updated_at,omitempty"`
-}
-
 // CreateEpic ...
 func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("CreateEpic: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("POST", "epics", body, nil)
-	if err != nil {
-		return nil, err
-	}
 	epic := Epic{}
-	if err := json.Unmarshal(bytes, &epic); err != nil {
+	if err := c.createResource(&epic, params); err != nil {
 		return nil, err
 	}
 	return &epic, nil
@@ -257,123 +216,33 @@ func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
 
 // GetEpic gets an epic by ID
 func (c *Client) GetEpic(id int) (*Epic, error) {
-	resource := path.Join("epics", strconv.Itoa(id))
-	bytes, err := c.Request("GET", resource)
-	if err != nil {
-		return nil, err
-	}
-	epic := Epic{}
-	if err := json.Unmarshal(bytes, &epic); err != nil {
+	epic := Epic{ID: id}
+	if err := c.getResource(&epic); err != nil {
 		return nil, err
 	}
 	return &epic, nil
-}
-
-// UpdateEpicParams ...
-type UpdateEpicParams struct {
-	AfterID             *int
-	Archived            *bool
-	BeforeID            *int
-	CompletedAtOverride *time.Time
-	Deadline            *time.Time
-	Description         *string
-	FollowerIDs         []string
-	Labels              []CreateLabelParams
-	MilestoneID         *int
-	Name                string
-	OwnerIDs            []string
-	StartedAtOverride   *time.Time
-	State               EpicState
-}
-type updateEpicParamsResolved struct {
-	AfterID             *int                `json:"after_id,omitempty"`
-	Archived            *bool               `json:"archived,omitempty"`
-	BeforeID            *int                `json:"before_id,omitempty"`
-	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
-	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
-	Description         *string             `json:"description,omitempty"`
-	FollowerIDs         []string            `json:"follower_ids,omitempty"`
-	Labels              []CreateLabelParams `json:"labels,omitempty"`
-	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
-	Name                string              `json:"name,omitempty"`
-	OwnerIDs            []string            `json:"owner_ids,omitempty"`
-	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
-	State               EpicState           `json:"state,omitempty"`
-}
-
-// MarshalJSON ...
-func (p UpdateEpicParams) MarshalJSON() ([]byte, error) {
-	out := updateEpicParamsResolved{
-		Archived:    p.Archived,
-		AfterID:     p.AfterID,
-		BeforeID:    p.BeforeID,
-		Description: p.Description,
-		FollowerIDs: p.FollowerIDs,
-		Labels:      p.Labels,
-		Name:        p.Name,
-		OwnerIDs:    p.OwnerIDs,
-		State:       p.State,
-	}
-
-	nullable{{
-		in:   p.CompletedAtOverride,
-		out:  &out.CompletedAtOverride,
-		null: func() bool { return p.CompletedAtOverride.IsZero() },
-	}, {
-		in:   p.StartedAtOverride,
-		out:  &out.StartedAtOverride,
-		null: func() bool { return p.StartedAtOverride.IsZero() },
-	}, {
-		in:   p.Deadline,
-		out:  &out.Deadline,
-		null: func() bool { return p.Deadline.IsZero() },
-	}, {
-		in:   p.MilestoneID,
-		out:  &out.MilestoneID,
-		null: func() bool { return p.MilestoneID == ResetID },
-	}}.Do()
-
-	return json.Marshal(&out)
 }
 
 // UpdateEpic ...
 func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
-	resource := path.Join("epics", strconv.Itoa(id))
-	body, err := json.Marshal(&params)
-	if err != nil {
-		return nil, fmt.Errorf("UpdateEpic: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
-	if err != nil {
-		return nil, err
-	}
-	epic := Epic{}
-	if err := json.Unmarshal(bytes, &epic); err != nil {
+	epic := Epic{ID: id}
+	if err := c.updateResource(&epic, params); err != nil {
 		return nil, err
 	}
 	return &epic, nil
 }
 
-// DeleteEpic creates an epic
+// DeleteEpic ...
 func (c *Client) DeleteEpic(id int) error {
-	resource := path.Join("epics", strconv.Itoa(id))
-	_, err := c.Request("DELETE", resource)
-	return err
+	epic := Epic{ID: id}
+	return c.deleteResource(&epic)
 }
 
 // CreateEpicComment ...
 func (c *Client) CreateEpicComment(epicID int, params *CreateCommentParams) (*ThreadedComment, error) {
-	resource := path.Join("epics", strconv.Itoa(epicID), "comments")
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("CreateEpicComment: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("POST", resource, body, nil)
-	if err != nil {
-		return nil, err
-	}
-	comment := ThreadedComment{}
-	if err := json.Unmarshal(bytes, &comment); err != nil {
+	epic := Epic{ID: epicID}
+	comment := ThreadedComment{parent: &epic}
+	if err := c.createResource(&comment, params); err != nil {
 		return nil, err
 	}
 	return &comment, nil
@@ -385,20 +254,9 @@ func (c *Client) UpdateEpicComment(
 	commentID int,
 	params *UpdateCommentParams,
 ) (*ThreadedComment, error) {
-	resource := path.Join(
-		"epics", strconv.Itoa(epicID),
-		"comments", strconv.Itoa(commentID),
-	)
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("UpdateEpicComment: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
-	if err != nil {
-		return nil, err
-	}
-	comment := ThreadedComment{}
-	if err := json.Unmarshal(bytes, &comment); err != nil {
+	epic := Epic{ID: epicID}
+	comment := ThreadedComment{ID: commentID, parent: &epic}
+	if err := c.updateResource(&comment, params); err != nil {
 		return nil, err
 	}
 	return &comment, nil
@@ -410,33 +268,22 @@ func (c *Client) CreateEpicCommentComment(
 	commentID int,
 	params *CreateCommentParams,
 ) (*ThreadedComment, error) {
-	resource := path.Join(
-		"epics", strconv.Itoa(epicID),
-		"comments", strconv.Itoa(commentID),
-	)
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("CreateEpicCommentComment: could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody("POST", resource, body, nil)
-	if err != nil {
-		return nil, err
-	}
-	comment := ThreadedComment{}
-	if err := json.Unmarshal(bytes, &comment); err != nil {
+	epic := Epic{ID: epicID}
+	comment := ThreadedComment{ID: commentID, parent: &epic}
+	if err := c.createResource(&comment, params); err != nil {
 		return nil, err
 	}
 	return &comment, nil
 }
 
 // ListEpicComments ...
-func (c *Client) ListEpicComments(epicID int) ([]ThreadedComment, error) {
+func (c *Client) ListEpicComments(epicID int) (ThreadedComments, error) {
 	resource := path.Join("epics", strconv.Itoa(epicID), "comments")
 	bytes, err := c.Request("GET", resource)
 	if err != nil {
 		return nil, err
 	}
-	comments := []ThreadedComment{}
+	comments := ThreadedComments{}
 	if err := json.Unmarshal(bytes, &comments); err != nil {
 		return nil, err
 	}
@@ -445,29 +292,19 @@ func (c *Client) ListEpicComments(epicID int) ([]ThreadedComment, error) {
 
 // GetEpicComment ...
 func (c *Client) GetEpicComment(epicID, commentID int) (*ThreadedComment, error) {
-	resource := path.Join(
-		"epics", strconv.Itoa(epicID),
-		"comments", strconv.Itoa(commentID),
-	)
-	bytes, err := c.Request("GET", resource)
-	if err != nil {
-		return nil, err
-	}
-	comment := ThreadedComment{}
-	if err := json.Unmarshal(bytes, &comment); err != nil {
+	epic := Epic{ID: epicID}
+	comment := ThreadedComment{ID: commentID, parent: &epic}
+	if err := c.getResource(&comment); err != nil {
 		return nil, err
 	}
 	return &comment, nil
 }
 
-// DeleteEpicComment creates an epic
+// DeleteEpicComment ...
 func (c *Client) DeleteEpicComment(epicID, commentID int) error {
-	resource := path.Join(
-		"epics", strconv.Itoa(epicID),
-		"comments", strconv.Itoa(commentID),
-	)
-	_, err := c.Request("DELETE", resource)
-	return err
+	epic := Epic{ID: epicID}
+	comment := ThreadedComment{ID: commentID, parent: &epic}
+	return c.deleteResource(&comment)
 }
 
 // FileUpload ...
@@ -510,66 +347,36 @@ func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
 }
 
 // ListFiles ...
-func (c *Client) ListFiles() ([]File, error) {
-	resource := "files"
-	bytes, err := c.Request("GET", resource)
-	if err != nil {
-		return nil, fmt.Errorf("ListFiles: error making request: %s", err)
-	}
-	files := []File{}
-	if err := json.Unmarshal(bytes, &files); err != nil {
-		return nil, fmt.Errorf("ListFiles: error unmarshaling response: %s", err)
+func (c *Client) ListFiles() (Files, error) {
+	files := Files{}
+	if err := c.getResource(&files); err != nil {
+		return nil, err
 	}
 	return files, nil
 }
 
 // GetFile ...
 func (c *Client) GetFile(id int) (*File, error) {
-	resource := path.Join("files", strconv.Itoa(id))
-	bytes, err := c.Request("GET", resource)
-	if err != nil {
-		return nil, fmt.Errorf("GetFile: error making request: %s", err)
-	}
-	file := File{}
-	if err := json.Unmarshal(bytes, &file); err != nil {
-		return nil, fmt.Errorf("GetFile: error unmarshaling response: %s", err)
+	file := File{ID: id}
+	if err := c.getResource(&file); err != nil {
+		return nil, err
 	}
 	return &file, nil
 }
 
-// UpdateFileParams ...
-type UpdateFileParams struct {
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	ExternalID  *string    `json:"external_id,omitempty"`
-	Name        *string    `json:"name,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
-	UploaderID  *string    `json:"uploader_id,omitempty"`
-}
-
 // UpdateFile ...
 func (c *Client) UpdateFile(id int, params *UpdateFileParams) (*File, error) {
-	resource := path.Join("files", strconv.Itoa(id))
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("UpdateFile: couldn't marshal params %s", err)
-	}
-	bytes, err := c.RequestWithBody("PUT", resource, body, nil)
-	if err != nil {
-		return nil, fmt.Errorf("UpdateFile: error making request: %s", err)
-	}
-	file := File{}
-	if err := json.Unmarshal(bytes, &file); err != nil {
-		return nil, fmt.Errorf("UpdateFile: error unmarshaling response: %s", err)
+	file := File{ID: id}
+	if err := c.updateResource(&file, params); err != nil {
+		return nil, err
 	}
 	return &file, nil
 }
 
 // DeleteFile ...
 func (c *Client) DeleteFile(id int) error {
-	resource := path.Join("files", strconv.Itoa(id))
-	_, err := c.Request("DELETE", resource)
-	return err
+	file := File{ID: id}
+	return c.deleteResource(&file)
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See
@@ -677,6 +484,38 @@ func (c *Client) RequestWithBody(
 		}
 	}
 	return bytes, nil
+}
+
+func (c *Client) getResource(r Resource) error {
+	bytes, err := c.Request("GET", r.MakeURL())
+	if err != nil {
+		return err
+	}
+	if len(bytes) > 0 {
+		return json.Unmarshal(bytes, r)
+	}
+	return nil
+}
+func (c *Client) deleteResource(r Resource) error {
+	_, err := c.Request("DELETE", r.MakeURL())
+	return err
+}
+func (c *Client) createResource(r Resource, params interface{}) error {
+	return c.createOrUpdateResource("POST", r, params)
+}
+func (c *Client) updateResource(r Resource, params interface{}) error {
+	return c.createOrUpdateResource("PUT", r, params)
+}
+func (c *Client) createOrUpdateResource(m string, r Resource, p interface{}) error {
+	body, err := json.Marshal(p)
+	if err != nil {
+		return fmt.Errorf("could not marshal params, %s", err)
+	}
+	bytes, err := c.RequestWithBody(m, r.MakeURL(), body, nil)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, &r)
 }
 
 func (c *Client) checkSetup() {
