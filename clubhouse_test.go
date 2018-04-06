@@ -979,6 +979,28 @@ func TestCRUDProjects(t *testing.T) {
 	})
 }
 
+func TestReadRepositories(t *testing.T) {
+	t.Skip("skipping repo test")
+
+	c := makeClient()
+	repos, err := c.ListRepositories()
+	if err != nil {
+		t.Fatal("didn't expect error listing", err)
+	}
+	if len(repos) == 0 {
+		t.Fatal("something went wrong, there should be at least 1 repo")
+	}
+	id := repos[0].ID
+
+	repo, err := c.GetRepository(id)
+	if err != nil {
+		t.Fatal("didn't expect error getting", err)
+	}
+	if repo.Name != repos[0].Name {
+		t.Error("names didn't match")
+	}
+}
+
 // func TestCRUDProject(t *testing.T) {
 // 	t.Run("create", func(t *testing.T){})
 // 	t.Run("read", func(t *testing.T){})

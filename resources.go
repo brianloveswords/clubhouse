@@ -758,6 +758,22 @@ type Repository struct {
 	URL        string    `json:"url"`
 }
 
+// MakeURL ...
+func (r Repository) MakeURL() string {
+	if r.ID == 0 {
+		return "repositories"
+	}
+	return path.Join("repositories", strconv.Itoa(r.ID))
+}
+
+// Repositories ...
+type Repositories []Repository
+
+// MakeURL ...
+func (m Repositories) MakeURL() string {
+	return "repositories"
+}
+
 // SearchResults represents the results of the search query.
 type SearchResults struct {
 	Data  []StorySearch `json:"data"`

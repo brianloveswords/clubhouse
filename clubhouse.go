@@ -494,6 +494,26 @@ func (c *Client) UpdateProject(id int, params *UpdateProjectParams) (*Project, e
 	return &project, nil
 }
 
+// ListRepositories ...
+func (c *Client) ListRepositories() (Repositories, error) {
+	repos := Repositories{}
+	err := c.getResource(&repos)
+	if err != nil {
+		return nil, err
+	}
+	return repos, nil
+}
+
+// GetRepository ...
+func (c *Client) GetRepository(id int) (*Repository, error) {
+	repo := Repository{ID: id}
+	err := c.getResource(&repo)
+	if err != nil {
+		return nil, err
+	}
+	return &repo, nil
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {
