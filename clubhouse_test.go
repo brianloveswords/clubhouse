@@ -1001,6 +1001,285 @@ func TestReadRepositories(t *testing.T) {
 	}
 }
 
+func TestCreateStoryParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateStoryParams{},
+		Expect: `{}`,
+	}, {
+		Name: "Comments",
+		Params: CreateStoryParams{Comments: []CreateCommentParams{{
+			Text: "ok",
+		}}},
+		Expect: `{"comments":[{"text":"ok"}]}`,
+	}, {
+		Name:   "CompletedAtOverride",
+		Params: CreateStoryParams{CompletedAtOverride: &testTime},
+		Expect: `{"completed_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "CreatedAt",
+		Params: CreateStoryParams{CreatedAt: &testTime},
+		Expect: `{"created_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Deadline",
+		Params: CreateStoryParams{Deadline: &testTime},
+		Expect: `{"deadline":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Description",
+		Params: CreateStoryParams{Description: "hi"},
+		Expect: `{"description":"hi"}`,
+	}, {
+		Name:   "EpicID",
+		Params: CreateStoryParams{EpicID: 19},
+		Expect: `{"epic_id":19}`,
+	}, {
+		Name:   "Estimate",
+		Params: CreateStoryParams{Estimate: 22},
+		Expect: `{"estimate":22}`,
+	}, {
+		Name:   "FileIDs",
+		Params: CreateStoryParams{FileIDs: []int{12, 24}},
+		Expect: `{"file_ids":[12,24]}`,
+	}, {
+		Name:   "FollowerIDs",
+		Params: CreateStoryParams{FollowerIDs: []string{"1", "2"}},
+		Expect: `{"follower_ids":["1","2"]}`,
+	}, {
+		Name:   "Labels",
+		Params: CreateStoryParams{Labels: []CreateLabelParams{{Name: "hi"}}},
+		Expect: `{"labels":[{"name":"hi"}]}`,
+	}, {
+		Name:   "LinkedFileIDs",
+		Params: CreateStoryParams{LinkedFileIDs: []int{12, 24}},
+		Expect: `{"linked_file_ids":[12,24]}`,
+	}, {
+		Name:   "Name",
+		Params: CreateStoryParams{Name: "wave"},
+		Expect: `{"name":"wave"}`,
+	}, {
+		Name:   "OwnerIDs",
+		Params: CreateStoryParams{OwnerIDs: []string{"1", "2"}},
+		Expect: `{"owner_ids":["1","2"]}`,
+	}, {
+		Name:   "ProjectID",
+		Params: CreateStoryParams{ProjectID: 420},
+		Expect: `{"project_id":420}`,
+	}, {
+		Name:   "RequestedByID",
+		Params: CreateStoryParams{RequestedByID: "person"},
+		Expect: `{"requested_by_id":"person"}`,
+	}, {
+		Name:   "StartedAtOverride",
+		Params: CreateStoryParams{StartedAtOverride: &testTime},
+		Expect: `{"started_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name: "StoryLinks",
+		Params: CreateStoryParams{StoryLinks: []CreateStoryLinkParams{{
+			ObjectID:  2,
+			SubjectID: 1,
+			Verb:      VerbBlocks,
+		}}},
+		Expect: `{"story_links":[{"object_id":2,"subject_id":1,"verb":"blocks"}]}`,
+	}, {
+		Name:   "StoryType",
+		Params: CreateStoryParams{StoryType: StoryTypeFeature},
+		Expect: `{"story_type":"feature"}`,
+	}, {
+		Name: "Tasks",
+		Params: CreateStoryParams{Tasks: []CreateTaskParams{{
+			Complete:    true,
+			CreatedAt:   &testTime,
+			Description: "hi",
+		}}},
+		Expect: `{"tasks":[{"complete":true,"created_at":"2018-04-20T16:20:00+04:00","description":"hi"}]}`,
+	}, {
+		Name:   "UpdatedAt",
+		Params: CreateStoryParams{UpdatedAt: &testTime},
+		Expect: `{"updated_at":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "WorkflowStateID",
+		Params: CreateStoryParams{WorkflowStateID: 78},
+		Expect: `{"workflow_state_id":78}`,
+	},
+	}.Test(t)
+}
+
+func TestUpdateStoriesParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateStoriesParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "AfterID",
+		Params: UpdateStoriesParams{AfterID: Int(10)},
+		Expect: `{"after_id":10}`,
+	}, {
+		Name:   "Archived",
+		Params: UpdateStoriesParams{Archived: Archived},
+		Expect: `{"archived":true}`,
+	}, {
+		Name:   "Deadline",
+		Params: UpdateStoriesParams{Deadline: &testTime},
+		Expect: `{"deadline":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Deadline: reset",
+		Params: UpdateStoriesParams{Deadline: ResetTime},
+		Expect: `{"deadline":null}`,
+	}, {
+		Name:   "EpicID",
+		Params: UpdateStoriesParams{EpicID: Int(13)},
+		Expect: `{"epic_id":13}`,
+	}, {
+		Name:   "EpicID: reset",
+		Params: UpdateStoriesParams{EpicID: ResetID},
+		Expect: `{"epic_id":null}`,
+	}, {
+		Name:   "Estimate",
+		Params: UpdateStoriesParams{Estimate: Int(13)},
+		Expect: `{"estimate":13}`,
+	}, {
+		Name:   "Estimate: reset",
+		Params: UpdateStoriesParams{Estimate: ResetEstimate},
+		Expect: `{"estimate":null}`,
+	}, {
+		Name:   "FollowerIDsAdd",
+		Params: UpdateStoriesParams{FollowerIDsAdd: []string{"yo"}},
+		Expect: `{"follower_ids_add":["yo"]}`,
+	}, {
+		Name:   "FollowerIDsRemove",
+		Params: UpdateStoriesParams{FollowerIDsRemove: []string{"unyo"}},
+		Expect: `{"follower_ids_remove":["unyo"]}`,
+	}, {
+		Name:   "LabelsAdd",
+		Params: UpdateStoriesParams{LabelsAdd: []CreateLabelParams{{Name: "hi"}}},
+		Expect: `{"labels_add":[{"name":"hi"}]}`,
+	}, {
+		Name:   "LabelsRemove",
+		Params: UpdateStoriesParams{LabelsRemove: []CreateLabelParams{{Name: "hi"}}},
+		Expect: `{"labels_remove":[{"name":"hi"}]}`,
+	}, {
+		Name:   "OwnerIDsAdd",
+		Params: UpdateStoriesParams{OwnerIDsAdd: []string{"yo"}},
+		Expect: `{"owner_ids_add":["yo"]}`,
+	}, {
+		Name:   "OwnerIDsRemove",
+		Params: UpdateStoriesParams{OwnerIDsRemove: []string{"unyo"}},
+		Expect: `{"owner_ids_remove":["unyo"]}`,
+	}, {
+		Name:   "ProjectID",
+		Params: UpdateStoriesParams{ProjectID: ID(99)},
+		Expect: `{"project_id":99}`,
+	}, {
+		Name:   "RequestedByID",
+		Params: UpdateStoriesParams{RequestedByID: String("lol")},
+		Expect: `{"requested_by_id":"lol"}`,
+	}, {
+		Name:   "StoryIDs",
+		Params: UpdateStoriesParams{StoryIDs: []int{1, 2, 3}},
+		Expect: `{"story_ids":[1,2,3]}`,
+	}, {
+		Name:   "StoryType",
+		Params: UpdateStoriesParams{StoryType: StoryTypeFeature},
+		Expect: `{"story_type":"feature"}`,
+	}}.Test(t)
+}
+
+func TestUpdateStoryParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateStoryParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "AfterID",
+		Params: UpdateStoryParams{AfterID: Int(10)},
+		Expect: `{"after_id":10}`,
+	}, {
+		Name:   "Archived",
+		Params: UpdateStoryParams{Archived: Unarchived},
+		Expect: `{"archived":false}`,
+	}, {
+		Name:   "BeforeID",
+		Params: UpdateStoryParams{BeforeID: Int(22)},
+		Expect: `{"before_id":22}`,
+	}, {
+		Name:   "BranchIDs",
+		Params: UpdateStoryParams{BranchIDs: []int{22, 44}},
+		Expect: `{"branch_ids":[22,44]}`,
+	}, {
+		Name:   "CommitIDs",
+		Params: UpdateStoryParams{CommitIDs: []int{22, 44}},
+		Expect: `{"commit_ids":[22,44]}`,
+	}, {
+		Name:   "CompletedAtOverride",
+		Params: UpdateStoryParams{CompletedAtOverride: &testTime},
+		Expect: `{"completed_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Deadline",
+		Params: UpdateStoryParams{Deadline: &testTime},
+		Expect: `{"deadline":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Deadline: reset",
+		Params: UpdateStoryParams{Deadline: ResetTime},
+		Expect: `{"deadline":null}`,
+	}, {
+		Name:   "Description",
+		Params: UpdateStoryParams{Description: String("oh hi")},
+		Expect: `{"description":"oh hi"}`,
+	}, {
+		Name:   "EpicID",
+		Params: UpdateStoryParams{EpicID: Int(10)},
+		Expect: `{"epic_id":10}`,
+	}, {
+		Name:   "Estimate",
+		Params: UpdateStoryParams{Estimate: Int(50)},
+		Expect: `{"estimate":50}`,
+	}, {
+		Name:   "Estimate: reset",
+		Params: UpdateStoryParams{Estimate: ResetEstimate},
+		Expect: `{"estimate":null}`,
+	}, {
+		Name:   "FileIDs",
+		Params: UpdateStoryParams{FileIDs: []int{12, 24}},
+		Expect: `{"file_ids":[12,24]}`,
+	}, {
+		Name:   "FollowerIDs",
+		Params: UpdateStoryParams{FollowerIDs: []string{"1", "2"}},
+		Expect: `{"follower_ids":["1","2"]}`,
+	}, {
+		Name:   "Labels",
+		Params: UpdateStoryParams{Labels: []CreateLabelParams{{Name: "hi"}}},
+		Expect: `{"labels":[{"name":"hi"}]}`,
+	}, {
+		Name:   "LinkedFileIDs",
+		Params: UpdateStoryParams{LinkedFileIDs: []int{12, 24}},
+		Expect: `{"linked_file_ids":[12,24]}`,
+	}, {
+		Name:   "Name",
+		Params: UpdateStoryParams{Name: String("the name")},
+		Expect: `{"name":"the name"}`,
+	}, {
+		Name:   "OwnerIDs",
+		Params: UpdateStoryParams{OwnerIDs: []string{"1", "2"}},
+		Expect: `{"owner_ids":["1","2"]}`,
+	}, {
+		Name:   "RequestedByID",
+		Params: UpdateStoryParams{RequestedByID: String("1")},
+		Expect: `{"requested_by_id":"1"}`,
+	}, {
+		Name:   "StartedAtOverride",
+		Params: UpdateStoryParams{StartedAtOverride: &testTime},
+		Expect: `{"started_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "StoryType",
+		Params: UpdateStoryParams{StoryType: StoryTypeFeature},
+		Expect: `{"story_type":"feature"}`,
+	}, {
+		Name:   "WorkflowStateID",
+		Params: UpdateStoryParams{WorkflowStateID: Int(80)},
+		Expect: `{"workflow_state_id":80}`,
+	}}.Test(t)
+}
+
 // func TestCRUDProject(t *testing.T) {
 // 	t.Run("create", func(t *testing.T){})
 // 	t.Run("read", func(t *testing.T){})

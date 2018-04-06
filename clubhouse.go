@@ -88,6 +88,7 @@ var (
 	ShowThermometer = &ptrue
 	HideThermometer = &pfalse
 	ResetID         = ID(-1)
+	ResetEstimate   = ID(-1)
 	ResetTime       = Time(time.Time{})
 	ResetColor      = String("")
 	EmptyString     = String("")

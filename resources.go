@@ -173,9 +173,9 @@ const (
 // CreateStoryLinkParams represents request parameters for creating a
 // Story Link within a Story.
 type CreateStoryLinkParams struct {
-	ObjectID  int       `json:"object_id"`
-	SubjectID int       `json:"subject_id"`
-	Verb      StoryVerb `json:"verb"`
+	ObjectID  int       `json:"object_id,omitempty"`
+	SubjectID int       `json:"subject_id,omitempty"`
+	Verb      StoryVerb `json:"verb,omitempty"`
 }
 
 // StoryType represents the type of story
@@ -183,45 +183,212 @@ type StoryType string
 
 // Valid states for StoryType
 const (
-	TypeBug     StoryType = "bug"
-	TypeChore             = "chore"
-	TypeFeature           = "feature"
+	StoryTypeBug     StoryType = "bug"
+	StoryTypeChore             = "chore"
+	StoryTypeFeature           = "feature"
 )
 
 // CreateStoryParams is used to create multiple stories in a single
 // request.
 type CreateStoryParams struct {
-	Comments            []CreateCommentParams   `json:"comments"`
-	CompletedAtOverride time.Time               `json:"completed_at_override"`
-	CreatedAt           time.Time               `json:"created_at"`
-	Deadline            time.Time               `json:"deadline"`
-	Description         string                  `json:"description"`
-	EpicID              int                     `json:"epic_id"`
-	Estimate            int                     `json:"estimate"`
-	ExternalID          string                  `json:"external_id"`
-	FileIDs             []string                `json:"follower_ids"`
-	Labels              []CreateLabelParams     `json:"labels"`
-	LinkedFileIDs       []int                   `json:"linked_file_ids"`
-	Name                []int                   `json:"name"`
-	OwnerIDs            []string                `json:"owner_ids"`
-	ProjectID           int                     `json:"project_id"`
-	RequestedByID       string                  `json:"requested_by_id"`
-	StartedAtOverride   time.Time               `json:"started_at_override"`
-	StoryLinks          []CreateStoryLinkParams `json:"story_links"`
-	StoryType           StoryType               `json:"story_type"`
-	Tasks               []CreateTaskParams      `json:"tasks"`
-	UpdatedAt           time.Time               `json:"updated_at"`
-	WorkflowStateID     int                     `json:"workflow_state_id"`
+	Comments            []CreateCommentParams   `json:"comments,omitempty"`
+	CompletedAtOverride *time.Time              `json:"completed_at_override,omitempty"`
+	CreatedAt           *time.Time              `json:"created_at,omitempty"`
+	Deadline            *time.Time              `json:"deadline,omitempty"`
+	Description         string                  `json:"description,omitempty"`
+	EpicID              int                     `json:"epic_id,omitempty"`
+	Estimate            int                     `json:"estimate,omitempty"`
+	ExternalID          string                  `json:"external_id,omitempty"`
+	FileIDs             []int                   `json:"file_ids,omitempty"`
+	FollowerIDs         []string                `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams     `json:"labels,omitempty"`
+	LinkedFileIDs       []int                   `json:"linked_file_ids,omitempty"`
+	Name                string                  `json:"name,omitempty"`
+	OwnerIDs            []string                `json:"owner_ids,omitempty"`
+	ProjectID           int                     `json:"project_id,omitempty"`
+	RequestedByID       string                  `json:"requested_by_id,omitempty"`
+	StartedAtOverride   *time.Time              `json:"started_at_override,omitempty"`
+	StoryLinks          []CreateStoryLinkParams `json:"story_links,omitempty"`
+	StoryType           StoryType               `json:"story_type,omitempty"`
+	Tasks               []CreateTaskParams      `json:"tasks,omitempty"`
+	UpdatedAt           *time.Time              `json:"updated_at,omitempty"`
+	WorkflowStateID     int                     `json:"workflow_state_id,omitempty"`
 }
 
 // CreateTaskParams request parameters for creating a Task on a Story.
 type CreateTaskParams struct {
-	Complete    bool      `json:"complete"`
-	CreatedAt   time.Time `json:"created_at"`
-	Description string    `json:"description"`
-	ExternalID  string    `json:"external_id"`
-	OwnerIDs    []string  `json:"owner_ids"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Complete    bool       `json:"complete,omitempty"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description string     `json:"description,omitempty"`
+	ExternalID  string     `json:"external_id,omitempty"`
+	OwnerIDs    []string   `json:"owner_ids,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}
+
+// UpdateStoriesParams ...
+type UpdateStoriesParams struct {
+	AfterID           *int
+	Archived          *bool
+	Deadline          *time.Time
+	EpicID            *int
+	Estimate          *int
+	FollowerIDsAdd    []string
+	FollowerIDsRemove []string
+	LabelsAdd         []CreateLabelParams
+	LabelsRemove      []CreateLabelParams
+	LinkedFileIDs     []int
+	OwnerIDsAdd       []string
+	OwnerIDsRemove    []string
+	ProjectID         *int
+	RequestedByID     *string
+	StoryIDs          []int
+	StoryType         StoryType
+	WorkflowStateID   *int
+}
+type updateStoriesParamsResolved struct {
+	AfterID           *int                `json:"after_id,omitempty"`
+	Archived          *bool               `json:"archived,omitempty"`
+	Deadline          *json.RawMessage    `json:"deadline,omitempty"`
+	EpicID            *json.RawMessage    `json:"epic_id,omitempty"`
+	Estimate          *json.RawMessage    `json:"estimate,omitempty"`
+	FollowerIDsAdd    []string            `json:"follower_ids_add,omitempty"`
+	FollowerIDsRemove []string            `json:"follower_ids_remove,omitempty"`
+	LabelsAdd         []CreateLabelParams `json:"labels_add,omitempty"`
+	LabelsRemove      []CreateLabelParams `json:"labels_remove,omitempty"`
+	LinkedFileIDs     []int               `json:"linked_file_ids,omitempty"`
+	OwnerIDsAdd       []string            `json:"owner_ids_add,omitempty"`
+	OwnerIDsRemove    []string            `json:"owner_ids_remove,omitempty"`
+	ProjectID         *int                `json:"project_id,omitempty"`
+	RequestedByID     *string             `json:"requested_by_id,omitempty"`
+	StoryIDs          []int               `json:"story_ids,omitempty"`
+	StoryType         StoryType           `json:"story_type,omitempty"`
+	WorkflowStateID   *int                `json:"workflow_state_id,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateStoriesParams) MarshalJSON() ([]byte, error) {
+	out := updateStoriesParamsResolved{
+		AfterID:           p.AfterID,
+		Archived:          p.Archived,
+		FollowerIDsAdd:    p.FollowerIDsAdd,
+		FollowerIDsRemove: p.FollowerIDsRemove,
+		LabelsAdd:         p.LabelsAdd,
+		LabelsRemove:      p.LabelsRemove,
+		LinkedFileIDs:     p.LinkedFileIDs,
+		OwnerIDsAdd:       p.OwnerIDsAdd,
+		OwnerIDsRemove:    p.OwnerIDsRemove,
+		ProjectID:         p.ProjectID,
+		RequestedByID:     p.RequestedByID,
+		StoryIDs:          p.StoryIDs,
+		StoryType:         p.StoryType,
+		WorkflowStateID:   p.WorkflowStateID,
+	}
+	nullable{{
+		in:   p.Deadline,
+		out:  &out.Deadline,
+		null: func() bool { return p.Deadline == ResetTime },
+	}, {
+		in:   p.EpicID,
+		out:  &out.EpicID,
+		null: func() bool { return p.EpicID == ResetID },
+	}, {
+		in:   p.Estimate,
+		out:  &out.Estimate,
+		null: func() bool { return p.Estimate == ResetEstimate },
+	}}.Do()
+	return json.Marshal(&out)
+}
+
+// UpdateStoryParams ...
+type UpdateStoryParams struct {
+	AfterID             *int
+	Archived            *bool
+	BeforeID            *int
+	BranchIDs           []int
+	CommitIDs           []int
+	CompletedAtOverride *time.Time
+	Deadline            *time.Time
+	Description         *string
+	EpicID              *int
+	Estimate            *int
+	FileIDs             []int
+	FollowerIDs         []string
+	Labels              []CreateLabelParams
+	LinkedFileIDs       []int
+	Name                *string
+	OwnerIDs            []string
+	ProjectID           *int
+	RequestedByID       *string
+	StartedAtOverride   *time.Time
+	StoryType           StoryType
+	WorkflowStateID     *int
+}
+type updateStoryParamsResolved struct {
+	AfterID             *int                `json:"after_id,omitempty"`
+	Archived            *bool               `json:"archived,omitempty"`
+	BeforeID            *int                `json:"before_id,omitempty"`
+	BranchIDs           []int               `json:"branch_ids,omitempty"`
+	CommitIDs           []int               `json:"commit_ids,omitempty"`
+	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
+	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	EpicID              *json.RawMessage    `json:"epic_id,omitempty"`
+	Estimate            *json.RawMessage    `json:"estimate,omitempty"`
+	FileIDs             []int               `json:"file_ids,omitempty"`
+	FollowerIDs         []string            `json:"follower_ids,omitempty"`
+	Labels              []CreateLabelParams `json:"labels,omitempty"`
+	LinkedFileIDs       []int               `json:"linked_file_ids,omitempty"`
+	Name                *string             `json:"name,omitempty"`
+	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	ProjectID           *int                `json:"project_id,omitempty"`
+	RequestedByID       *string             `json:"requested_by_id,omitempty"`
+	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
+	StoryType           StoryType           `json:"story_type,omitempty"`
+	WorkflowStateID     *int                `json:"workflow_state_id,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateStoryParams) MarshalJSON() ([]byte, error) {
+	out := updateStoryParamsResolved{
+		AfterID:         p.AfterID,
+		Archived:        p.Archived,
+		BeforeID:        p.BeforeID,
+		BranchIDs:       p.BranchIDs,
+		CommitIDs:       p.CommitIDs,
+		Description:     p.Description,
+		FileIDs:         p.FileIDs,
+		FollowerIDs:     p.FollowerIDs,
+		Labels:          p.Labels,
+		LinkedFileIDs:   p.LinkedFileIDs,
+		Name:            p.Name,
+		OwnerIDs:        p.OwnerIDs,
+		ProjectID:       p.ProjectID,
+		RequestedByID:   p.RequestedByID,
+		StoryType:       p.StoryType,
+		WorkflowStateID: p.WorkflowStateID,
+	}
+	nullable{{
+		in:   p.Deadline,
+		out:  &out.Deadline,
+		null: func() bool { return p.Deadline == ResetTime },
+	}, {
+		in:   p.CompletedAtOverride,
+		out:  &out.CompletedAtOverride,
+		null: func() bool { return p.CompletedAtOverride == ResetTime },
+	}, {
+		in:   p.EpicID,
+		out:  &out.EpicID,
+		null: func() bool { return p.EpicID == ResetID },
+	}, {
+		in:   p.Estimate,
+		out:  &out.Estimate,
+		null: func() bool { return p.Estimate == ResetEstimate },
+	}, {
+		in:   p.StartedAtOverride,
+		out:  &out.StartedAtOverride,
+		null: func() bool { return p.StartedAtOverride == ResetTime },
+	}}.Do()
+	return json.Marshal(&out)
 }
 
 // Epic is a collection of stories that together might make up a
