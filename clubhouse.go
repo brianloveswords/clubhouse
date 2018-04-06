@@ -29,6 +29,7 @@ func (e ErrResponse) Error() string {
 // Errors
 var (
 	ErrSchemaMismatch   = ErrResponse{400, "Schema mismatch"}
+	ErrUnauthorized     = ErrResponse{401, "Unauthorized"}
 	ErrResourceNotFound = ErrResponse{404, "Resource does not exist"}
 	ErrUnprocessable    = ErrResponse{422, "Unprocessable"}
 	ErrServerError      = ErrResponse{500, "Server error"}
@@ -59,6 +60,45 @@ func RateLimiter(n int) ratelimit.Limiter {
 	return ratelimit.New(n)
 }
 
+// String ...
+func String(s string) *string {
+	return &s
+}
+
+// ID ...
+func ID(id int) *int {
+	return &id
+}
+
+// Time is a convenience function for getting a pointer to a time.Time
+// from an expression
+func Time(t time.Time) *time.Time {
+	return &t
+}
+
+// TODO: fill out docs
+var (
+	Archived    = &archived
+	Unarchived  = &unarchived
+	ResetID     = ID(-1)
+	ResetTime   = Time(time.Time{})
+	ResetColor  = String("")
+	EmptyString = String("")
+
+	archived   = true
+	unarchived = false
+)
+
+// EpicState ...
+type EpicState string
+
+// Epic State values
+const (
+	EpicStateDone       EpicState = "done"
+	EpicStateInProgress           = "in progress"
+	EpicStateToDo                 = "to do"
+)
+
 // Client represents a Clubhouse API client
 type Client struct {
 	AuthToken  string
@@ -68,9 +108,35 @@ type Client struct {
 	Limiter    ratelimit.Limiter
 }
 
+// UpdateCategoryParams contains the parameters for UpdateCategory
+// requests.
+type UpdateCategoryParams struct {
+	Archived *bool
+	Color    *string
+	Name     *string
+}
+type updateCategoryParamsResolved struct {
+	Archived *bool            `json:"archived,omitempty"`
+	Color    *json.RawMessage `json:"color,omitempty"`
+	Name     *string          `json:"name,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateCategoryParams) MarshalJSON() ([]byte, error) {
+	out := updateCategoryParamsResolved{
+		Archived: p.Archived,
+		Name:     p.Name,
+	}
+	nullable{{
+		in:   p.Color,
+		out:  &out.Color,
+		null: func() bool { return p.Color == ResetColor },
+	}}.Do()
+	return json.Marshal(&out)
+}
+
 // ListCategories returns a list of all categories and their attributes
 func (c *Client) ListCategories() ([]Category, error) {
-	c.checkSetup()
 	bytes, err := c.Request("GET", "categories")
 	if err != nil {
 		return nil, err
@@ -84,7 +150,6 @@ func (c *Client) ListCategories() ([]Category, error) {
 
 // GetCategory returns information about the selected category
 func (c *Client) GetCategory(id int) (*Category, error) {
-	c.checkSetup()
 	resource := path.Join("categories", strconv.Itoa(id))
 	bytes, err := c.Request("GET", resource)
 	if err != nil {
@@ -97,66 +162,12 @@ func (c *Client) GetCategory(id int) (*Category, error) {
 	return &category, nil
 }
 
-// Color returns a pointer to a color string for use in params
-func Color(c string) *string {
-	return &c
-}
-
-// ResetColor will set a blank color
-var ResetColor = Color("")
-
-// Archive status
-var (
-	archived   = true
-	unarchived = false
-	Archived   = &archived
-	Unarchived = &unarchived
-)
-
-// UpdateCategoryParams contains the parameters for UpdateCategory
-// requests.
-type UpdateCategoryParams struct {
-	Archived *bool   `json:"archived,omitempty"`
-	Color    *string `json:"color"`
-	Name     string  `json:"name,omitempty"`
-}
-
-type updateCategoryParamsWithoutColor struct {
-	Archived *bool   `json:"archived,omitempty"`
-	Color    *string `json:"color,omitempty"`
-	Name     string  `json:"name,omitempty"`
-}
-
 // UpdateCategory allows you to replace a Category name with another
 // name. If you try to name a Category something that already exists,
 // you will get an ErrUnprocessable error.
 func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category, error) {
-	c.checkSetup()
 	resource := path.Join("categories", strconv.Itoa(id))
-
-	// We want this function to be ergonomic: if the user passes a
-	// value, we assume they mean to update it. If they omit that value,
-	// we assume they don't want to update it and leave it at the
-	// current value. We have to handle Color specially because in order
-	// to reset the Color, we have to send {"color": null}, *but* we
-	// only want to send that if the user has explicitly indicated that
-	// they want to reset the color, *not* in cases where the Color has
-	// been left out of the parameter list.
-	// TODO: update this to use a similar algorithm to UpdateEpicParams
-	var bodyp interface{}
-	if params.Color == nil {
-		bodyp = updateCategoryParamsWithoutColor{
-			Archived: params.Archived,
-			Name:     params.Name,
-		}
-	} else {
-		if *params.Color == "" {
-			params.Color = nil
-		}
-		bodyp = params
-	}
-
-	body, err := json.Marshal(&bodyp)
+	body, err := json.Marshal(&params)
 	if err != nil {
 		return nil, fmt.Errorf("UpdateCategory: could not marshal params, %s", err)
 	}
@@ -183,7 +194,6 @@ func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error)
 	if params.Type == "" {
 		params.Type = CategoryTypeMilestone
 	}
-
 	body, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("CreateCategory: could not marshal params, %s", err)
@@ -201,7 +211,6 @@ func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error)
 
 // ListEpics lists all the epics
 func (c *Client) ListEpics() ([]Epic, error) {
-	c.checkSetup()
 	bytes, err := c.Request("GET", "epics")
 	if err != nil {
 		return nil, err
@@ -212,26 +221,6 @@ func (c *Client) ListEpics() ([]Epic, error) {
 	}
 	return epics, nil
 }
-
-// EpicState ...
-type EpicState string
-
-// Epic State values
-const (
-	EpicStateDone       EpicState = "done"
-	EpicStateInProgress           = "in progress"
-	EpicStateToDo                 = "to do"
-)
-
-// Time is a convenience function for getting a pointer to a time.Time
-// from an expression
-func Time(t time.Time) *time.Time {
-	return &t
-}
-
-// ResetTime is the sentinel value for indicating that a null value
-// should be sent for a time type.
-var ResetTime = Time(time.Time{})
 
 // CreateEpicParams ...
 type CreateEpicParams struct {
@@ -268,7 +257,6 @@ func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
 
 // GetEpic gets an epic by ID
 func (c *Client) GetEpic(id int) (*Epic, error) {
-	c.checkSetup()
 	resource := path.Join("epics", strconv.Itoa(id))
 	bytes, err := c.Request("GET", resource)
 	if err != nil {
@@ -280,23 +268,6 @@ func (c *Client) GetEpic(id int) (*Epic, error) {
 	}
 	return &epic, nil
 }
-
-// ID ...
-func ID(id int) *int {
-	return &id
-}
-
-// ResetID is the sentinel value for indicating that a null should be
-// sent for an ID field
-var ResetID = ID(-1)
-
-// String ...
-func String(s string) *string {
-	return &s
-}
-
-// EmptyString is a convenience reference to an empty string.
-var EmptyString = String("")
 
 // UpdateEpicParams ...
 type UpdateEpicParams struct {
@@ -314,7 +285,6 @@ type UpdateEpicParams struct {
 	StartedAtOverride   *time.Time
 	State               EpicState
 }
-
 type updateEpicParamsResolved struct {
 	AfterID             *int                `json:"after_id,omitempty"`
 	Archived            *bool               `json:"archived,omitempty"`
@@ -329,26 +299,6 @@ type updateEpicParamsResolved struct {
 	OwnerIDs            []string            `json:"owner_ids,omitempty"`
 	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
 	State               EpicState           `json:"state,omitempty"`
-}
-
-type nullable []struct {
-	in   interface{}
-	out  **json.RawMessage
-	null func() bool
-}
-
-func (n nullable) Do() {
-	for _, f := range n {
-		if !reflect.ValueOf(f.in).IsNil() {
-			var raw json.RawMessage
-			if f.null() {
-				raw = json.RawMessage(`null`)
-			} else {
-				raw, _ = json.Marshal(f.in)
-			}
-			*f.out = &raw
-		}
-	}
 }
 
 // MarshalJSON ...
@@ -528,7 +478,6 @@ type FileUpload struct {
 
 // UploadFiles ...
 func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
-	c.checkSetup()
 	resource := "files"
 	buf := bytes.NewBuffer([]byte{})
 	mp := multipart.NewWriter(buf)
@@ -562,7 +511,6 @@ func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
 
 // ListFiles ...
 func (c *Client) ListFiles() ([]File, error) {
-	c.checkSetup()
 	resource := "files"
 	bytes, err := c.Request("GET", resource)
 	if err != nil {
@@ -619,7 +567,6 @@ func (c *Client) UpdateFile(id int, params *UpdateFileParams) (*File, error) {
 
 // DeleteFile ...
 func (c *Client) DeleteFile(id int) error {
-	c.checkSetup()
 	resource := path.Join("files", strconv.Itoa(id))
 	_, err := c.Request("DELETE", resource)
 	return err
@@ -701,9 +648,21 @@ func (c *Client) RequestWithBody(
 		}
 	}
 
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, ErrClientRequest{
+			Err:    err,
+			URL:    url,
+			Method: method,
+		}
+	}
+
+	// TODO: include request body, and response body
 	switch resp.StatusCode {
 	case 400:
 		err = ErrSchemaMismatch
+	case 401:
+		err = ErrUnauthorized
 	case 404:
 		err = ErrResourceNotFound
 	case 422:
@@ -717,21 +676,12 @@ func (c *Client) RequestWithBody(
 			Method: method,
 		}
 	}
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, ErrClientRequest{
-			Err:    err,
-			URL:    url,
-			Method: method,
-		}
-	}
-
 	return bytes, nil
 }
 
 func (c *Client) checkSetup() {
 	if c.AuthToken == "" {
-		panic("clubhouse: Client missing APIKey")
+		panic("clubhouse: Client missing AuthToken")
 	}
 	if c.HTTPClient == nil {
 		c.HTTPClient = DefaultHTTPClient
@@ -751,4 +701,24 @@ func (c *Client) makeURL(resource string) string {
 	uri := path.Join(c.Version, resource)
 	uri += "?token=" + c.AuthToken
 	return c.RootURL + uri
+}
+
+type nullable []struct {
+	in   interface{}
+	out  **json.RawMessage
+	null func() bool
+}
+
+func (n nullable) Do() {
+	for _, f := range n {
+		if !reflect.ValueOf(f.in).IsNil() {
+			var raw json.RawMessage
+			if f.null() {
+				raw = json.RawMessage(`null`)
+			} else {
+				raw, _ = json.Marshal(f.in)
+			}
+			*f.out = &raw
+		}
+	}
 }

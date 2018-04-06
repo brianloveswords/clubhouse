@@ -78,8 +78,8 @@ var (
 type CreateCategoryParams struct {
 	Color      string       `json:"color,omitempty"`
 	ExternalID string       `json:"external_id,omitempty"`
-	Name       string       `json:"name"`
-	Type       CategoryType `json:"type"`
+	Name       string       `json:"name,omitempty"`
+	Type       CategoryType `json:"type,omitempty"`
 }
 
 // CreateCommentParams represents request parameters for creating a

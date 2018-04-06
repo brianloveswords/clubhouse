@@ -9,109 +9,113 @@ import (
 	"time"
 )
 
-func TestListCategories(t *testing.T) {
-	c := makeClient()
-	_, err := c.ListCategories()
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
+func TestCreateCategoryParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateCategoryParams{},
+		Expect: "{}",
+	}, {
+		Name:   "Name",
+		Params: CreateCategoryParams{Name: "hey"},
+		Expect: `{"name":"hey"}`,
+	}, {
+		Name:   "Type",
+		Params: CreateCategoryParams{Type: "the type"},
+		Expect: `{"type":"the type"}`,
+	}, {
+		Name:   "ExternalID",
+		Params: CreateCategoryParams{ExternalID: "an ID"},
+		Expect: `{"external_id":"an ID"}`,
+	}, {
+		Name:   "Color",
+		Params: CreateCategoryParams{Color: "red"},
+		Expect: `{"color":"red"}`,
+	},
+	}.Test(t)
 }
 
-func TestGetCategory(t *testing.T) {
-	c := makeClient()
-	knownID := 17
-	_, err := c.GetCategory(knownID)
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
+func TestUpdateCategoryParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateCategoryParams{},
+		Expect: "{}",
+	}, {
+		Name:   "Name",
+		Params: UpdateCategoryParams{Name: String("hey")},
+		Expect: `{"name":"hey"}`,
+	}, {
+		Name:   "ExternalID",
+		Params: UpdateCategoryParams{Archived: Unarchived},
+		Expect: `{"archived":false}`,
+	}, {
+		Name:   "Color",
+		Params: UpdateCategoryParams{Color: String("red")},
+		Expect: `{"color":"red"}`,
+	}, {
+		Name:   "Color: reset",
+		Params: UpdateCategoryParams{Color: ResetColor},
+		Expect: `{"color":null}`,
+	},
+	}.Test(t)
+
 }
 
-func TestUpdateCategory(t *testing.T) {
-	c := makeClient()
-	knownID := 17
-
-	newColor, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
-		Color:    Color("#00ff00"),
-		Archived: Archived,
+func TestCRUDCategories(t *testing.T) {
+	var (
+		c    = makeClient()
+		cat  *Category
+		cats []Category
+		err  error
+	)
+	t.Run("create", func(t *testing.T) {
+		cat, err = c.CreateCategory(&CreateCategoryParams{
+			Name:  "Hammes Fistkicker",
+			Color: "powerful",
+		})
+		if err != nil {
+			t.Fatal("did not expect error", err)
+		}
 	})
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
-	if newColor.Color != "#00ff00" {
-		t.Error("color didn't take", newColor.Color)
-	}
-	if !newColor.Archived {
-		t.Error("should have archived newColor")
-	}
-
-	newArchive, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
-		Archived: Unarchived,
+	t.Run("read", func(t *testing.T) {
+		getcat, err := c.GetCategory(cat.ID)
+		if err != nil {
+			t.Fatal("did not expect error", err)
+		}
+		if getcat.Color != cat.Color {
+			t.Errorf("color didn't stick, got %s", getcat.Color)
+		}
 	})
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
-	if newArchive.Archived != false {
-		t.Error("archive didn't take, should be false:", newArchive.Archived)
-	}
-	if newArchive.Color != "#00ff00" {
-		t.Error("color didn't stick through archive", newArchive.Color)
-	}
-
-	resetColor, err := c.UpdateCategory(knownID, &UpdateCategoryParams{
-		Color: ResetColor,
+	t.Run("list", func(t *testing.T) {
+		cats, err = c.ListCategories()
+		if err != nil {
+			t.Fatal("did not expect error", err)
+		}
+		if len(cats) == 0 {
+			t.Fatal("expected to get some categories")
+		}
 	})
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
-	if resetColor.Color != "" {
-		t.Error("resetting color didn't take", resetColor.Color)
-	}
-}
-
-func TestCreateAndDeleteCategory(t *testing.T) {
-	c := makeClient()
-	newcat, err := c.CreateCategory(&CreateCategoryParams{
-		Name:  "Hammes Fistkicker",
-		Color: "powerful",
+	t.Run("update", func(t *testing.T) {
+		upcat, err := c.UpdateCategory(cat.ID, &UpdateCategoryParams{
+			Color:    ResetColor,
+			Archived: Archived,
+		})
+		if err != nil {
+			t.Fatal("error updating category", err)
+		}
+		if upcat.Color != "" {
+			t.Error("color is wrong")
+		}
+		if upcat.Archived != true {
+			t.Error("should be archived")
+		}
 	})
-	if err != nil {
-		t.Error("did not expect error", err)
-	}
-
-	if newcat.Color != "powerful" {
-		t.Error("color didn't take", newcat.Color)
-	}
-	if newcat.Name != "Hammes Fistkicker" {
-		t.Error("name didn't take", newcat.Name)
-	}
-
-	if err := c.DeleteCategory(newcat.ID); err != nil {
-		t.Error("did not expect error when deleting", err)
-	}
-
-	category, err := c.GetCategory(newcat.ID)
-	if err == nil {
-		t.Error("*expected* error trying to find category", category)
-	}
-
-	interr := err.(ErrClientRequest)
-	if interr.Err != ErrResourceNotFound {
-		t.Error("expected a 404 error", category)
-	}
-}
-
-func TestListEpics(t *testing.T) {
-	c := makeClient()
-	epics, err := c.ListEpics()
-	if err != nil {
-		t.Fatal("did not expect error", err)
-	}
-	if len(epics) == 0 {
-		t.Fatal("expected some epics")
-	}
-	if epics[0].EntityType != "epic" {
-		t.Fatal("expected entity type to be epic")
-	}
+	t.Run("delete", func(t *testing.T) {
+		for _, category := range cats {
+			if err := c.DeleteCategory(category.ID); err != nil {
+				t.Fatal("did not expect error deleting category", err)
+			}
+		}
+	})
 }
 
 func TestUpdateEpicParams(t *testing.T) {
@@ -230,10 +234,15 @@ func TestCreateCommentParams(t *testing.T) {
 }
 
 func TestCRUDEpics(t *testing.T) {
-	c := makeClient()
-	name := "new test epic"
-	label := CreateLabelParams{Color: "red", Name: "test epic label"}
-	var epicID int
+	var (
+		c      = makeClient()
+		name   = "new test epic"
+		label  = CreateLabelParams{Color: "red", Name: "test epic label"}
+		err    error
+		epicID int
+		epics  []Epic
+	)
+
 	t.Run("create", func(t *testing.T) {
 		epic, err := c.CreateEpic(&CreateEpicParams{
 			Name:      "new test epic",
@@ -255,6 +264,18 @@ func TestCRUDEpics(t *testing.T) {
 		}
 		if epic.State != EpicStateInProgress {
 			t.Errorf("CreateEpic: state didn't stick, %s != %s", epic.State, EpicStateInProgress)
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		epics, err = c.ListEpics()
+		if err != nil {
+			t.Fatal("did not expect error", err)
+		}
+		if len(epics) == 0 {
+			t.Fatal("expected some epics")
+		}
+		if epics[0].EntityType != "epic" {
+			t.Fatal("expected entity type to be epic")
 		}
 	})
 	t.Run("read", func(t *testing.T) {
@@ -281,12 +302,13 @@ func TestCRUDEpics(t *testing.T) {
 		}
 	})
 	t.Run("delete", func(t *testing.T) {
-		if epicID == 0 {
+		if len(epics) == 0 {
 			t.Fatal("DeleteEpic: create must have failed")
 		}
-
-		if err := c.DeleteEpic(epicID); err != nil {
-			t.Error("DeleteEpic: couldn't delete epic", err)
+		for _, e := range epics {
+			if err := c.DeleteEpic(e.ID); err != nil {
+				t.Error("DeleteEpic: couldn't delete epic", err)
+			}
 		}
 	})
 }
