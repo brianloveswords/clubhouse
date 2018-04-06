@@ -388,9 +388,13 @@ func (c *Client) Request(method string, endpoint string) ([]byte, error) {
 // ErrClientRequest is returned when the client runs into
 // problems making a request.
 type ErrClientRequest struct {
-	Err    error
-	Method string
-	URL    string
+	Err          error
+	Method       string
+	URL          string
+	Request      *http.Request
+	Response     *http.Response
+	RequestBody  []byte
+	ResponseBody []byte
 }
 
 func (e ErrClientRequest) Error() string {
@@ -419,20 +423,19 @@ func (c *Client) RequestWithBody(
 	content []byte,
 	header *http.Header,
 ) ([]byte, error) {
-	var err error
-
 	// finish setup or panic if the client isn't configured correctly
 	c.checkSetup()
 
 	url := c.makeURL(endpoint)
 	body := bytes.NewBuffer(content)
 	req, err := http.NewRequest(method, url, body)
-
 	if err != nil {
 		return nil, ErrClientRequest{
-			Err:    err,
-			URL:    url,
-			Method: method,
+			Err:         err,
+			URL:         url,
+			Method:      method,
+			Request:     req,
+			RequestBody: content,
 		}
 	}
 
@@ -449,22 +452,27 @@ func (c *Client) RequestWithBody(
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, ErrClientRequest{
-			Err:    err,
-			URL:    url,
-			Method: method,
+			Err:         err,
+			URL:         url,
+			Method:      method,
+			Request:     req,
+			RequestBody: content,
 		}
 	}
 
 	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, ErrClientRequest{
-			Err:    err,
-			URL:    url,
-			Method: method,
+			Err:          err,
+			URL:          url,
+			Method:       method,
+			Request:      req,
+			RequestBody:  content,
+			Response:     resp,
+			ResponseBody: bytes,
 		}
 	}
 
-	// TODO: include request body, and response body
 	switch resp.StatusCode {
 	case 400:
 		err = ErrSchemaMismatch
@@ -474,13 +482,19 @@ func (c *Client) RequestWithBody(
 		err = ErrResourceNotFound
 	case 422:
 		err = ErrUnprocessable
+	case 500:
+		err = ErrServerError
 	}
 
 	if err != nil {
 		return nil, ErrClientRequest{
-			Err:    err,
-			URL:    url,
-			Method: method,
+			Err:          err,
+			URL:          url,
+			Method:       method,
+			Request:      req,
+			RequestBody:  content,
+			Response:     resp,
+			ResponseBody: bytes,
 		}
 	}
 	return bytes, nil
