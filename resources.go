@@ -12,6 +12,16 @@ type Resource interface {
 	MakeURL() string
 }
 
+// State ...
+type State string
+
+// State values
+const (
+	StateDone       State = "done"
+	StateInProgress       = "in progress"
+	StateToDo             = "to do"
+)
+
 // See https://clubhouse.io/api/rest/v2/#Resources for complete
 // documentation
 
@@ -239,7 +249,7 @@ type Epic struct {
 	Started             bool              `json:"started"`
 	StartedAt           time.Time         `json:"started_at"`
 	StartedAtOverride   time.Time         `json:"started_at_override"`
-	State               string            `json:"state"`
+	State               State             `json:"state"`
 	Stats               EpicStats         `json:"stats"`
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
@@ -272,7 +282,7 @@ type CreateEpicParams struct {
 	Name                string              `json:"name"`
 	OwnerIDs            []string            `json:"owner_ids,omitempty"`
 	StartedAtOverride   *time.Time          `json:"started_at_override,omitempty"`
-	State               EpicState           `json:"state,omitempty"`
+	State               State               `json:"state,omitempty"`
 	UpdatedAt           *time.Time          `json:"updated_at,omitempty"`
 }
 
@@ -290,7 +300,7 @@ type UpdateEpicParams struct {
 	Name                string
 	OwnerIDs            []string
 	StartedAtOverride   *time.Time
-	State               EpicState
+	State               State
 }
 type updateEpicParamsResolved struct {
 	AfterID             *int                `json:"after_id,omitempty"`
@@ -305,7 +315,7 @@ type updateEpicParamsResolved struct {
 	Name                string              `json:"name,omitempty"`
 	OwnerIDs            []string            `json:"owner_ids,omitempty"`
 	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
-	State               EpicState           `json:"state,omitempty"`
+	State               State               `json:"state,omitempty"`
 }
 
 // MarshalJSON ...
@@ -526,6 +536,22 @@ type Member struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// MakeURL ...
+func (m Member) MakeURL() string {
+	if m.ID == "" {
+		return "members"
+	}
+	return path.Join("members", m.ID)
+}
+
+// Members ...
+type Members []Member
+
+// MakeURL ...
+func (m Members) MakeURL() string {
+	return "members"
+}
+
 // Milestone is a collection of Epics that represent a release or some
 // other large initiative that your organization is working on.
 type Milestone struct {
@@ -541,8 +567,78 @@ type Milestone struct {
 	Started             bool       `json:"started"`
 	StartedAt           time.Time  `json:"started_at"`
 	StartedAtOverride   time.Time  `json:"started_at_override"`
-	State               string     `json:"state"`
+	State               State      `json:"state"`
 	UpdatedAt           time.Time  `json:"updated_at"`
+}
+
+// MakeURL ...
+func (m Milestone) MakeURL() string {
+	if m.ID == 0 {
+		return "milestones"
+	}
+	return path.Join("milestones", strconv.Itoa(m.ID))
+}
+
+// Milestones ...
+type Milestones []Milestone
+
+// MakeURL ...
+func (m Milestones) MakeURL() string {
+	return "milestones"
+}
+
+// CreateMilestoneParams ...
+type CreateMilestoneParams struct {
+	Categories          []CreateCategoryParams `json:"categories,omitempty"`
+	CompletedAtOverride *time.Time             `json:"completed_at_override,omitempty"`
+	Description         string                 `json:"description,omitempty"`
+	Name                string                 `json:"name,omitempty"`
+	StartedAtOverride   *time.Time             `json:"started_at_override,omitempty"`
+	State               State                  `json:"state,omitempty"`
+}
+
+// UpdateMilestoneParams ...
+type UpdateMilestoneParams struct {
+	AfterID             *int
+	BeforeID            *int
+	Categories          []CreateCategoryParams
+	CompletedAtOverride *time.Time
+	Description         *string
+	Name                *string
+	StartedAtOverride   *time.Time
+	State               State
+}
+type updateMilestoneParamsResolved struct {
+	AfterID             *int                   `json:"after_id,omitempty"`
+	BeforeID            *int                   `json:"before_id,omitempty"`
+	Categories          []CreateCategoryParams `json:"categories,omitempty"`
+	CompletedAtOverride *json.RawMessage       `json:"completed_at_override,omitempty"`
+	Description         *string                `json:"description,omitempty"`
+	Name                *string                `json:"name,omitempty"`
+	StartedAtOverride   *json.RawMessage       `json:"started_at_override,omitempty"`
+	State               State                  `json:"state,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateMilestoneParams) MarshalJSON() ([]byte, error) {
+	out := updateMilestoneParamsResolved{
+		AfterID:     p.AfterID,
+		BeforeID:    p.BeforeID,
+		Categories:  p.Categories,
+		Description: p.Description,
+		Name:        p.Name,
+		State:       p.State,
+	}
+	nullable{{
+		in:   p.CompletedAtOverride,
+		out:  &out.CompletedAtOverride,
+		null: func() bool { return p.CompletedAtOverride == ResetTime },
+	}, {
+		in:   p.StartedAtOverride,
+		out:  &out.StartedAtOverride,
+		null: func() bool { return p.StartedAtOverride == ResetTime },
+	}}.Do()
+	return json.Marshal(&out)
 }
 
 // Profile represents details about individual Clubhouse user’s profile

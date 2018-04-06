@@ -89,16 +89,6 @@ var (
 	unarchived = false
 )
 
-// EpicState ...
-type EpicState string
-
-// Epic State values
-const (
-	EpicStateDone       EpicState = "done"
-	EpicStateInProgress           = "in progress"
-	EpicStateToDo                 = "to do"
-)
-
 // Client represents a Clubhouse API client
 type Client struct {
 	AuthToken  string
@@ -339,6 +329,16 @@ func (c *Client) DeleteFile(id int) error {
 	return c.deleteResource(&file)
 }
 
+// ListLabels ...
+func (c *Client) ListLabels() (Labels, error) {
+	labels := Labels{}
+	err := c.getResource(&labels)
+	if err != nil {
+		return nil, err
+	}
+	return labels, nil
+}
+
 // CreateLabel ...
 func (c *Client) CreateLabel(params *CreateLabelParams) (*Label, error) {
 	label := Label{}
@@ -375,14 +375,70 @@ func (c *Client) UpdateLabel(id int, params *UpdateLabelParams) (*Label, error) 
 	return &label, nil
 }
 
-// ListLabels ...
-func (c *Client) ListLabels() (Labels, error) {
-	labels := Labels{}
-	err := c.getResource(&labels)
+// ListMembers ...
+func (c *Client) ListMembers() (Members, error) {
+	members := Members{}
+	err := c.getResource(&members)
 	if err != nil {
 		return nil, err
 	}
-	return labels, nil
+	return members, nil
+}
+
+// GetMember ...
+func (c *Client) GetMember(id string) (*Member, error) {
+	member := Member{ID: id}
+	err := c.getResource(&member)
+	if err != nil {
+		return nil, err
+	}
+	return &member, nil
+}
+
+// ListMilestones ...
+func (c *Client) ListMilestones() (Milestones, error) {
+	milestones := Milestones{}
+	err := c.getResource(&milestones)
+	if err != nil {
+		return nil, err
+	}
+	return milestones, nil
+}
+
+// CreateMilestone ...
+func (c *Client) CreateMilestone(params *CreateMilestoneParams) (*Milestone, error) {
+	milestone := Milestone{}
+	err := c.createResource(&milestone, params)
+	if err != nil {
+		return nil, err
+	}
+	return &milestone, nil
+}
+
+// GetMilestone ...
+func (c *Client) GetMilestone(id int) (*Milestone, error) {
+	milestone := Milestone{ID: id}
+	err := c.getResource(&milestone)
+	if err != nil {
+		return nil, err
+	}
+	return &milestone, nil
+}
+
+// DeleteMilestone ...
+func (c *Client) DeleteMilestone(id int) error {
+	milestone := Milestone{ID: id}
+	return c.deleteResource(&milestone)
+}
+
+// UpdateMilestone ...
+func (c *Client) UpdateMilestone(id int, params *UpdateMilestoneParams) (*Milestone, error) {
+	milestone := Milestone{ID: id}
+	err := c.updateResource(&milestone, params)
+	if err != nil {
+		return nil, err
+	}
+	return &milestone, nil
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See

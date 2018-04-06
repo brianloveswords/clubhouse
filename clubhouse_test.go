@@ -68,14 +68,17 @@ func TestCRUDCategories(t *testing.T) {
 		cats []Category
 		err  error
 	)
-	t.Run("create", func(_ *testing.T) {
-		cat, err = c.CreateCategory(&CreateCategoryParams{
-			Name:  fmt.Sprintf("%v", time.Now()),
-			Color: "powerful",
-		})
-		if err != nil {
-			fmt.Println(err)
-			t.Fatal("did not expect error")
+	cat, err = c.CreateCategory(&CreateCategoryParams{
+		Name:  fmt.Sprintf("%v", time.Now()),
+		Color: "powerful",
+	})
+	if err != nil {
+		fmt.Println(err)
+		t.Fatal("did not expect error")
+	}
+	t.Run("create", func(t *testing.T) {
+		if cat.Color != "powerful" {
+			t.Error("color is wrong, got", cat.Color)
 		}
 	})
 	t.Run("read", func(t *testing.T) {
@@ -215,27 +218,25 @@ func TestCRUDEpics(t *testing.T) {
 		epics  []Epic
 	)
 
+	epic, err := c.CreateEpic(&CreateEpicParams{
+		Name:      "new test epic",
+		CreatedAt: Time(time.Now()),
+		State:     StateInProgress,
+		Labels:    []CreateLabelParams{label},
+	})
+	if err != nil {
+		t.Fatal("CreateEpic: couldn't create", err)
+	}
+	if epic == nil {
+		t.Fatal("CreateEpic: epic shouldn't be nil")
+	}
 	t.Run("create", func(t *testing.T) {
-		epic, err := c.CreateEpic(&CreateEpicParams{
-			Name:      "new test epic",
-			CreatedAt: Time(time.Now()),
-			State:     EpicStateInProgress,
-			Labels:    []CreateLabelParams{label},
-		})
-		if err != nil {
-			t.Fatal("CreateEpic: couldn't create", err)
-		}
-		if epic == nil {
-			t.Fatal("CreateEpic: epic shouldn't be nil")
-		}
-
 		epicID = epic.ID
-
 		if epic.Name != name {
 			t.Errorf("CreateEpic: name didn't stick, %s != %s", epic.Name, name)
 		}
-		if epic.State != EpicStateInProgress {
-			t.Errorf("CreateEpic: state didn't stick, %s != %s", epic.State, EpicStateInProgress)
+		if epic.State != StateInProgress {
+			t.Errorf("CreateEpic: state didn't stick, %s != %s", epic.State, StateInProgress)
 		}
 	})
 	t.Run("list", func(t *testing.T) {
@@ -316,8 +317,13 @@ func TestCreateCommentParams(t *testing.T) {
 }
 
 func TestCRUDEpicComments(t *testing.T) {
+	var (
+		c         = makeClient()
+		text      = "ur wrong"
+		reply     = "ur wrongerer"
+		commentID int
+	)
 	// make an epic first.
-	c := makeClient()
 	epic, err := c.CreateEpic(&CreateEpicParams{
 		Name: "test epic: comments",
 	})
@@ -327,9 +333,6 @@ func TestCRUDEpicComments(t *testing.T) {
 	epicID := epic.ID
 	defer c.DeleteEpic(epicID)
 
-	var commentID, replyID int
-	text := "ur wrong"
-	reply := "ur wrongerer"
 	t.Run("create", func(t *testing.T) {
 		comment, err := c.CreateEpicComment(epicID, &CreateCommentParams{
 			Text: text,
@@ -373,7 +376,6 @@ func TestCRUDEpicComments(t *testing.T) {
 		if gotreply != reply {
 			t.Errorf("replytext didn't stick, expected %s got %s", reply, gotreply)
 		}
-		replyID = comment.Comments[0].ID
 	})
 	t.Run("update", func(t *testing.T) {
 		updated := "n/m sorry"
@@ -443,25 +445,23 @@ func TestCRUDFiles(t *testing.T) {
 	}
 
 	var files, listed []File
-	t.Run("create", func(t *testing.T) {
-		files, err = c.UploadFiles([]FileUpload{
-			{
-				Name: "test-file-1.txt",
-				File: f1,
-			},
-			{
-				Name: "test-file-2.txt",
-				File: f2,
-			},
-		})
-		if err != nil {
-			t.Fatal("unexpected error uploading file", err)
-		}
-
-		if len(files) < 2 {
-			t.Fatal("expected 2 files, got", len(files))
-		}
+	files, err = c.UploadFiles([]FileUpload{
+		{
+			Name: "test-file-1.txt",
+			File: f1,
+		},
+		{
+			Name: "test-file-2.txt",
+			File: f2,
+		},
 	})
+	if err != nil {
+		t.Fatal("unexpected error uploading file", err)
+	}
+
+	if len(files) < 2 {
+		t.Fatal("expected 2 files, got", len(files))
+	}
 	t.Run("list", func(t *testing.T) {
 		listed, err = c.ListFiles()
 		if err != nil {
@@ -555,20 +555,20 @@ func TestCRUDLabels(t *testing.T) {
 		label  *Label
 		labels []Label
 	)
+	label, err = c.CreateLabel(&CreateLabelParams{
+		Color:      "crayon",
+		ExternalID: "the id",
+		Name:       fmt.Sprintf("%v", time.Now()),
+	})
+	if err != nil {
+		t.Fatal("did not expect error")
+	}
 	t.Run("create", func(t *testing.T) {
-		label, err = c.CreateLabel(&CreateLabelParams{
-			Color:      "crayon",
-			ExternalID: "the id",
-			Name:       fmt.Sprintf("%v", time.Now()),
-		})
-		if err != nil {
-			t.Fatal("did not expect error")
+		if label.Color != "crayon" {
+			t.Error("color is wrong, got", label.Color)
 		}
 	})
 	t.Run("read", func(t *testing.T) {
-		if label == nil {
-			t.Fatal("create must have failed")
-		}
 		getlabel, err := c.GetLabel(label.ID)
 		if err != nil {
 			t.Fatal("did not expect error")
@@ -578,18 +578,12 @@ func TestCRUDLabels(t *testing.T) {
 		}
 	})
 	t.Run("list", func(t *testing.T) {
-		if label == nil {
-			t.Fatal("create must have failed")
-		}
 		labels, err = c.ListLabels()
 		if err != nil {
 			t.Fatal("did not expect error")
 		}
 	})
 	t.Run("update", func(t *testing.T) {
-		if label == nil {
-			t.Fatal("create must have failed")
-		}
 		uplabel, err := c.UpdateLabel(label.ID, &UpdateLabelParams{
 			Color:    ResetColor,
 			Archived: Archived,
@@ -606,9 +600,6 @@ func TestCRUDLabels(t *testing.T) {
 		}
 	})
 	t.Run("delete", func(t *testing.T) {
-		if label == nil {
-			t.Fatal("create must have failed")
-		}
 		for _, l := range labels {
 			if err := c.DeleteLabel(l.ID); err != nil {
 				t.Fatal("did not expect error deleting label")
@@ -617,7 +608,164 @@ func TestCRUDLabels(t *testing.T) {
 	})
 }
 
-// func TestCRUDLabels(t *testing.T) {
+func TestReadMembers(t *testing.T) {
+	c := makeClient()
+	members, err := c.ListMembers()
+	if err != nil {
+		t.Fatal("didn't expect error listing", err)
+	}
+	if len(members) == 0 {
+		t.Fatal("something went wrong, there should be at least 1 member")
+	}
+	id := members[0].ID
+
+	member, err := c.GetMember(id)
+	if err != nil {
+		t.Fatal("didn't expect error getting", err)
+	}
+	if member.Profile.Name != members[0].Profile.Name {
+		t.Error("profile names didn't match")
+	}
+}
+
+func TestCreateMilestoneParams(t *testing.T) {
+	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateMilestoneParams{},
+		Expect: `{}`,
+	}, {
+		Name: "Categories",
+		Params: CreateMilestoneParams{Categories: []CreateCategoryParams{{
+			Name:  "the category",
+			Color: "category-colored",
+		}}},
+		Expect: `{"categories":[{"color":"category-colored","name":"the category"}]}`,
+	}, {
+		Name:   "CompletedAtOverride",
+		Params: CreateMilestoneParams{CompletedAtOverride: &testTime},
+		Expect: `{"completed_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Description",
+		Params: CreateMilestoneParams{Description: "big stone"},
+		Expect: `{"description":"big stone"}`,
+	}, {
+		Name:   "StartedAtOverride",
+		Params: CreateMilestoneParams{StartedAtOverride: &testTime},
+		Expect: `{"started_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "State",
+		Params: CreateMilestoneParams{State: StateInProgress},
+		Expect: `{"state":"in progress"}`,
+	},
+	}.Test(t)
+}
+
+func TestUpdateMilestoneParams(t *testing.T) {
+	testTime, _ := time.Parse(time.RFC3339, "2018-04-20T16:20:00+04:00")
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateMilestoneParams{},
+		Expect: `{}`,
+	}, {
+		Name: "Categories",
+		Params: UpdateMilestoneParams{Categories: []CreateCategoryParams{{
+			Name:  "the category",
+			Color: "category-colored",
+		}}},
+		Expect: `{"categories":[{"color":"category-colored","name":"the category"}]}`,
+	}, {
+		Name:   "CompletedAtOverride",
+		Params: UpdateMilestoneParams{CompletedAtOverride: &testTime},
+		Expect: `{"completed_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "Description",
+		Params: UpdateMilestoneParams{Description: String("big stone")},
+		Expect: `{"description":"big stone"}`,
+	}, {
+		Name:   "Description: empty",
+		Params: UpdateMilestoneParams{Description: EmptyString},
+		Expect: `{"description":""}`,
+	}, {
+		Name:   "StartedAtOverride",
+		Params: UpdateMilestoneParams{StartedAtOverride: &testTime},
+		Expect: `{"started_at_override":"2018-04-20T16:20:00+04:00"}`,
+	}, {
+		Name:   "State",
+		Params: UpdateMilestoneParams{State: StateInProgress},
+		Expect: `{"state":"in progress"}`,
+	},
+	}.Test(t)
+}
+
+func TestCRUDMilestones(t *testing.T) {
+	var (
+		c          = makeClient()
+		err        error
+		milestone  *Milestone
+		milestones []Milestone
+	)
+	milestone, err = c.CreateMilestone(&CreateMilestoneParams{
+		Name:        fmt.Sprintf("milestone %v", time.Now()),
+		Description: "the description",
+		State:       StateInProgress,
+		Categories: []CreateCategoryParams{{
+			Name:  "the category",
+			Color: "category-colored",
+		}},
+	})
+	if err != nil {
+		t.Fatal("did not expect error", err)
+	}
+	t.Run("create", func(t *testing.T) {
+		if milestone.Description != "the description" {
+			t.Error("description is wrong, got", milestone.Description)
+		}
+		if milestone.State != StateInProgress {
+			t.Error("state is wrong, got", milestone.State)
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		getmilestone, err := c.GetMilestone(milestone.ID)
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+		if getmilestone.Name != milestone.Name {
+			t.Error("name didn't stick")
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		milestones, err = c.ListMilestones()
+		if err != nil {
+			t.Fatal("did not expect error")
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		upmilestone, err := c.UpdateMilestone(milestone.ID, &UpdateMilestoneParams{
+			Description: String("a new description"),
+			State:       StateDone,
+		})
+		if err != nil {
+			fmt.Println(err)
+			t.Fatal("did not expect error")
+		}
+		if upmilestone.Description != "a new description" {
+			t.Error("description reset didn't work")
+		}
+		if upmilestone.State != StateDone {
+			t.Error("description reset didn't work")
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		for _, l := range milestones {
+			if err := c.DeleteMilestone(l.ID); err != nil {
+				t.Fatal("did not expect error deleting milestone")
+			}
+		}
+	})
+}
+
+// func TestCRUDMilestone(t *testing.T) {
 // 	t.Run("create", func(t *testing.T){})
 // 	t.Run("read", func(t *testing.T){})
 // 	t.Run("list", func(t *testing.T){})
