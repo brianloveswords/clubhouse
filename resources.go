@@ -989,6 +989,22 @@ type Story struct {
 	WorflowStateID      int              `json:"worflow_state_id"`
 }
 
+// MakeURL ...
+func (s *Story) MakeURL() string {
+	if s.ID == 0 && s.Name == "" {
+		return "stories"
+	}
+	return path.Join("stories", strconv.Itoa(s.ID))
+}
+
+// Stories is a Story slice
+type Stories []Story
+
+// MakeURL ...
+func (s *Stories) MakeURL() string {
+	return "stories"
+}
+
 // StoryLink represents a semantic relationships between two
 // stories. Relationship types are relates to, blocks / blocked by, and
 // duplicates / is duplicated by. The format is subject -> link ->
@@ -1081,7 +1097,7 @@ type Task struct {
 	Description string    `json:"description"`
 	EntityType  string    `json:"entity_type"`
 	ExternalID  string    `json:"external_id"`
-	ID          string    `json:"id"`
+	ID          int       `json:"id"`
 	MentionIDs  []string  `json:"mention_ids"`
 	OwnerIDs    []string  `json:"owner_ids"`
 	Position    int       `json:"position"`

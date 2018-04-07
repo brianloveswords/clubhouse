@@ -515,6 +515,42 @@ func (c *Client) GetRepository(id int) (*Repository, error) {
 	return &repo, nil
 }
 
+// CreateStory ...
+func (c *Client) CreateStory(params *CreateStoryParams) (*Story, error) {
+	story := Story{}
+	err := c.createResource(&story, params)
+	if err != nil {
+		return nil, err
+	}
+	return &story, nil
+}
+
+// GetStory ...
+func (c *Client) GetStory(id int) (*Story, error) {
+	story := Story{ID: id}
+	err := c.getResource(&story)
+	if err != nil {
+		return nil, err
+	}
+	return &story, nil
+}
+
+// DeleteStory ...
+func (c *Client) DeleteStory(id int) error {
+	story := Story{ID: id}
+	return c.deleteResource(&story)
+}
+
+// UpdateStory ...
+func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) {
+	story := Story{ID: id}
+	err := c.updateResource(&story, params)
+	if err != nil {
+		return nil, err
+	}
+	return &story, nil
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {

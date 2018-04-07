@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -44,7 +45,7 @@ Member list:
 %v`, len(members), namelist)
 	}
 
-	memberUUID = members[0].ID
+	memberUUID = activemembers[0].ID
 	m.Run()
 }
 
@@ -1278,6 +1279,146 @@ func TestUpdateStoryParams(t *testing.T) {
 		Params: UpdateStoryParams{WorkflowStateID: Int(80)},
 		Expect: `{"workflow_state_id":80}`,
 	}}.Test(t)
+}
+func TestCRUDStories(t *testing.T) {
+	c := makeClient()
+	proj, err := c.CreateProject(&CreateProjectParams{
+		Name: fmt.Sprintf("story project %s", time.Now()),
+	})
+	if err != nil {
+		t.Fatal("error creating project", err)
+	}
+	defer c.DeleteProject(proj.ID)
+	epic, err := c.CreateEpic(&CreateEpicParams{
+		Name: fmt.Sprintf("story epic %s", time.Now()),
+	})
+	if err != nil {
+		t.Fatal("error creating epic", err)
+	}
+	defer c.DeleteEpic(epic.ID)
+
+	params := CreateStoryParams{
+		CompletedAtOverride: &testTime,
+		CreatedAt:           &testTime,
+		Comments:            []CreateCommentParams{{Text: "hi"}},
+		Deadline:            &testTime,
+		Description:         "desc",
+		EpicID:              epic.ID,
+		Estimate:            8,
+		ExternalID:          "gh1234",
+		FollowerIDs:         []string{memberUUID},
+		Labels:              []CreateLabelParams{{Name: "test label"}},
+		Name:                fmt.Sprintf("new story! %s", time.Now()),
+		OwnerIDs:            []string{memberUUID},
+		ProjectID:           proj.ID,
+		RequestedByID:       memberUUID,
+		StartedAtOverride:   &testTime,
+		StoryType:           StoryTypeFeature,
+		Tasks:               []CreateTaskParams{{Description: "the stuff"}},
+		UpdatedAt:           &testTime,
+		// TODO: figure out valid workflow state
+		// WorkflowStateID:     1,
+	}
+	story, err := c.CreateStory(&params)
+	if err != nil {
+		t.Fatal("expected story creation", err)
+	}
+	t.Run("create", func(t *testing.T) {
+		if !story.CompletedAtOverride.Equal(*params.CompletedAtOverride) {
+			t.Error("CompletedAtOverride mismatch, got", story.CompletedAtOverride)
+		}
+		if !story.CreatedAt.Equal(*params.CreatedAt) {
+			t.Error("CreatedAt mismatch, got", story.CreatedAt)
+		}
+		if len(story.Comments) == 0 {
+			t.Error("expected comment")
+		}
+		if story.Comments[0].Text != params.Comments[0].Text {
+			t.Error("comment text mismatch, got", story.Comments[0].Text)
+		}
+		if !story.Deadline.Equal(*params.Deadline) {
+			t.Error("Deadline mismatch, got", story.Deadline)
+		}
+		if story.Description != params.Description {
+			t.Error("Description mismatch, got", story.Description)
+		}
+		if story.EpicID != params.EpicID {
+			t.Error("EpicID mismatch, got", story.EpicID)
+		}
+		if story.Estimate != params.Estimate {
+			t.Error("Estimate mismatch, got", story.Estimate)
+		}
+		if story.ExternalID != params.ExternalID {
+			t.Error("ExternalID mismatch, got", story.ExternalID)
+		}
+		if len(story.FollowerIDs) == 0 {
+			t.Error("FollowerIDs expected, got 0 len")
+		}
+		if story.FollowerIDs[0] != params.FollowerIDs[0] {
+			t.Error("FollowerIDs mismatch, got", story.FollowerIDs[0])
+		}
+		if len(story.Labels) == 0 {
+			t.Error("Labels expected, got 0 len")
+		}
+		if story.Labels[0].Name != params.Labels[0].Name {
+			t.Error("Labels mismatch, got", story.Labels[0].Name)
+		}
+		if story.Name != params.Name {
+			t.Error("Name mismatch, got", story.Name)
+		}
+		if len(story.OwnerIDs) == 0 {
+			t.Error("OwnerIDs expected, got 0 len")
+		}
+		if story.OwnerIDs[0] != params.OwnerIDs[0] {
+			t.Error("OwnerIDs mismatch, got", story.OwnerIDs[0])
+		}
+		if story.ProjectID != params.ProjectID {
+			t.Error("ProjectID mismatch, got", story.ProjectID)
+		}
+		if story.RequestedByID != params.RequestedByID {
+			t.Error("RequestedByID mismatch, got", story.RequestedByID)
+		}
+		if !story.StartedAtOverride.Equal(*params.StartedAtOverride) {
+			t.Error("StartedAtOverride mismatch, got", story.StartedAtOverride)
+		}
+		if story.StoryType != params.StoryType {
+			t.Error("StoryType mismatch, got", story.StoryType)
+		}
+		if len(story.Tasks) == 0 {
+			t.Error("Tasks expected, got 0 len")
+		}
+		if story.Tasks[0].Description != params.Tasks[0].Description {
+			t.Error("Tasks mismatch, got", story.Tasks[0].Description)
+		}
+		if !story.UpdatedAt.Equal(*params.UpdatedAt) {
+			t.Error("UpdatedAt mismatch, got", story.UpdatedAt)
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		getstory, err := c.GetStory(story.ID)
+		if err != nil {
+			t.Error("couldn't get story", err)
+		}
+		if !reflect.DeepEqual(story, getstory) {
+			t.Error("expected to get the same story")
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		updated, err := c.UpdateStory(story.ID, &UpdateStoryParams{
+			StoryType: StoryTypeChore,
+		})
+		if err != nil {
+			t.Fatal("unexpected error updating", err)
+		}
+		if updated.StoryType != StoryTypeChore {
+			t.Error("StoryType mismatch, got", updated.StoryType)
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		if err := c.DeleteStory(story.ID); err != nil {
+			t.Fatal("should have been able to delete", err)
+		}
+	})
 }
 
 // func TestCRUDProject(t *testing.T) {
