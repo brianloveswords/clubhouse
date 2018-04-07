@@ -16,8 +16,6 @@ var testTime, _ = time.Parse(time.RFC3339, testTimeString)
 var memberUUID string
 
 func TestMain(m *testing.M) {
-	// FIXME: once stories are implemented the safeguard should be "more
-	// than 0 stories"
 	c := makeClient()
 	members, err := c.ListMembers()
 	if err != nil {
@@ -1478,6 +1476,10 @@ func TestSearchQuery(t *testing.T) {
 		Name:   "empty",
 		Params: SearchQuery{},
 		Expect: `""`,
+	}, {
+		Name:   "Raw",
+		Params: SearchQuery{Raw: `"story" -"2"`},
+		Expect: `"\"story\" -\"2\""`,
 	}, {
 		Name:   "Epic",
 		Params: SearchQuery{Epic: "a"},

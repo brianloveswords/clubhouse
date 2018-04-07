@@ -945,6 +945,7 @@ func (m Repositories) MakeURL() string {
 
 // SearchQuery ...
 type SearchQuery struct {
+	Raw           string
 	Epic          string
 	Estimate      int
 	HasAttachment bool
@@ -1000,6 +1001,10 @@ type SearchQueryInversions struct {
 
 // MarshalJSON ...
 func (q SearchQuery) MarshalJSON() ([]byte, error) {
+	if q.Raw != "" {
+		return json.Marshal(q.Raw)
+	}
+
 	parts := []string{}
 	if q.Epic != "" {
 		parts = append(parts, fmt.Sprintf(`epic:"%s"`, q.Epic))
