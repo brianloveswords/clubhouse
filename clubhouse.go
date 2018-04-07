@@ -525,6 +525,22 @@ func (c *Client) CreateStory(params *CreateStoryParams) (*Story, error) {
 	return &story, nil
 }
 
+type createStoriesParam struct {
+	Stories []CreateStoryParams `json:"stories"`
+}
+
+// CreateStories ...
+func (c *Client) CreateStories(plist []CreateStoryParams) ([]StorySlim, error) {
+	stories := []StorySlim{}
+	params := createStoriesParam{Stories: plist}
+	uri := path.Join("stories", "bulk")
+	err := c.requestResource("POST", &stories, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return stories, nil
+}
+
 // GetStory ...
 func (c *Client) GetStory(id int) (*Story, error) {
 	story := Story{ID: id}
@@ -541,6 +557,17 @@ func (c *Client) DeleteStory(id int) error {
 	return c.deleteResource(&story)
 }
 
+type deleteStoriesParam struct {
+	StoryIDs []int `json:"story_ids"`
+}
+
+// DeleteStories ...
+func (c *Client) DeleteStories(ids []int) error {
+	uri := path.Join("stories", "bulk")
+	param := deleteStoriesParam{StoryIDs: ids}
+	return c.requestResource("DELETE", nil, uri, param)
+}
+
 // UpdateStory ...
 func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) {
 	story := Story{ID: id}
@@ -549,6 +576,17 @@ func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) 
 		return nil, err
 	}
 	return &story, nil
+}
+
+// UpdateStories ...
+func (c *Client) UpdateStories(params *UpdateStoriesParams) ([]StorySlim, error) {
+	stories := []StorySlim{}
+	uri := path.Join("stories", "bulk")
+	err := c.requestResource("PUT", &stories, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return stories, nil
 }
 
 // Request makes an HTTP request to the Clubhouse API without a body. See
@@ -702,6 +740,31 @@ func (c *Client) createOrUpdateResource(m string, r Resource, p interface{}) err
 		return err
 	}
 	return json.Unmarshal(bytes, &r)
+}
+func (c *Client) requestResource(
+	method string,
+	resource interface{},
+	uri string,
+	params interface{},
+) error {
+	var (
+		body = []byte{}
+		err  error
+	)
+	if params != nil {
+		body, err = json.Marshal(params)
+		if err != nil {
+			return fmt.Errorf("could not marshal params, %s", err)
+		}
+	}
+	bytes, err := c.RequestWithBody(method, uri, body, nil)
+	if err != nil {
+		return err
+	}
+	if resource != nil {
+		return json.Unmarshal(bytes, &resource)
+	}
+	return nil
 }
 
 func (c *Client) checkSetup() {

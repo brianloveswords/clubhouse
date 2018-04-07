@@ -2,8 +2,10 @@ package clubhouse
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -941,6 +943,237 @@ func (m Repositories) MakeURL() string {
 	return "repositories"
 }
 
+// SearchQuery ...
+type SearchQuery struct {
+	Epic          string
+	Estimate      int
+	HasAttachment bool
+	HasComment    bool
+	HasDeadline   bool
+	HasEpic       bool
+	HasTask       bool
+	ID            int
+	IsArchived    bool
+	IsBlocked     bool
+	IsBlocker     bool
+	IsDone        bool
+	IsOverdue     bool
+	IsStarted     bool
+	IsUnestimated bool
+	IsUnstarted   bool
+	Label         []string
+	Owner         []string
+	Project       string
+	Requester     string
+	State         string
+	Text          string
+	Type          StoryType
+	Inversions    SearchQueryInversions
+}
+
+// SearchQueryInversions ...
+type SearchQueryInversions struct {
+	Epic          []string
+	Estimate      []int
+	HasAttachment bool
+	HasComment    bool
+	HasDeadline   bool
+	HasEpic       bool
+	HasTask       bool
+	ID            []int
+	IsArchived    bool
+	IsBlocked     bool
+	IsBlocker     bool
+	IsDone        bool
+	IsOverdue     bool
+	IsStarted     bool
+	IsUnestimated bool
+	IsUnstarted   bool
+	Label         []string
+	Owner         []string
+	Project       []string
+	Requester     []string
+	State         []string
+	Text          []string
+	Type          []StoryType
+}
+
+// MarshalJSON ...
+func (q SearchQuery) MarshalJSON() ([]byte, error) {
+	parts := []string{}
+	if q.Epic != "" {
+		parts = append(parts, fmt.Sprintf(`epic:"%s"`, q.Epic))
+	}
+	if q.Estimate != 0 {
+		parts = append(parts, fmt.Sprintf(`estimate:%d`, q.Estimate))
+	}
+	if q.HasAttachment {
+		parts = append(parts, "has:attachment")
+	}
+	if q.HasComment {
+		parts = append(parts, "has:comment")
+	}
+	if q.HasDeadline {
+		parts = append(parts, "has:deadline")
+	}
+	if q.HasEpic {
+		parts = append(parts, "has:epic")
+	}
+	if q.HasTask {
+		parts = append(parts, "has:task")
+	}
+	if q.ID != 0 {
+		parts = append(parts, fmt.Sprintf("id:%d", q.ID))
+	}
+	if q.IsArchived {
+		parts = append(parts, "is:archived")
+	}
+	if q.IsBlocked {
+		parts = append(parts, "is:blocked")
+	}
+	if q.IsBlocker {
+		parts = append(parts, "is:blocker")
+	}
+	if q.IsDone {
+		parts = append(parts, "is:done")
+	}
+	if q.IsOverdue {
+		parts = append(parts, "is:overdue")
+	}
+	if q.IsStarted {
+		parts = append(parts, "is:started")
+	}
+	if q.IsUnestimated {
+		parts = append(parts, "is:unestimated")
+	}
+	if q.IsUnstarted {
+		parts = append(parts, "is:unstarted")
+	}
+	if q.Label != nil {
+		for _, e := range q.Label {
+			parts = append(parts, fmt.Sprintf(`label:"%s"`, e))
+		}
+	}
+	if q.Owner != nil {
+		for _, e := range q.Owner {
+			parts = append(parts, fmt.Sprintf(`owner:"%s"`, e))
+		}
+	}
+	if q.Project != "" {
+		parts = append(parts, fmt.Sprintf(`project:"%s"`, q.Project))
+	}
+	if q.Requester != "" {
+		parts = append(parts, fmt.Sprintf(`requester:"%s"`, q.Requester))
+	}
+	if q.State != "" {
+		parts = append(parts, fmt.Sprintf(`state:"%s"`, q.State))
+	}
+	if q.Text != "" {
+		parts = append(parts, fmt.Sprintf(`"%s"`, q.Text))
+	}
+	if q.Type != "" {
+		parts = append(parts, fmt.Sprintf(`type:%s`, q.Type))
+	}
+
+	if q.Inversions.Epic != nil {
+		for _, e := range q.Inversions.Epic {
+			parts = append(parts, fmt.Sprintf(`-epic:"%s"`, e))
+		}
+	}
+	if q.Inversions.Estimate != nil {
+		for _, e := range q.Inversions.Estimate {
+			parts = append(parts, fmt.Sprintf(`-estimate:%d`, e))
+		}
+	}
+	if q.Inversions.HasAttachment {
+		parts = append(parts, "-has:attachment")
+	}
+	if q.Inversions.HasComment {
+		parts = append(parts, "-has:comment")
+	}
+	if q.Inversions.HasDeadline {
+		parts = append(parts, "-has:deadline")
+	}
+	if q.Inversions.HasEpic {
+		parts = append(parts, "-has:epic")
+	}
+	if q.Inversions.HasTask {
+		parts = append(parts, "-has:task")
+	}
+	if q.Inversions.ID != nil {
+		for _, e := range q.Inversions.ID {
+			parts = append(parts, fmt.Sprintf(`-id:%d`, e))
+		}
+	}
+	if q.Inversions.IsArchived {
+		parts = append(parts, "-is:archived")
+	}
+	if q.Inversions.IsBlocked {
+		parts = append(parts, "-is:blocked")
+	}
+	if q.Inversions.IsBlocker {
+		parts = append(parts, "-is:blocker")
+	}
+	if q.Inversions.IsDone {
+		parts = append(parts, "-is:done")
+	}
+	if q.Inversions.IsOverdue {
+		parts = append(parts, "-is:overdue")
+	}
+	if q.Inversions.IsStarted {
+		parts = append(parts, "-is:started")
+	}
+	if q.Inversions.IsUnestimated {
+		parts = append(parts, "-is:unestimated")
+	}
+	if q.Inversions.IsUnstarted {
+		parts = append(parts, "-is:unstarted")
+	}
+	if q.Inversions.Label != nil {
+		for _, e := range q.Inversions.Label {
+			parts = append(parts, fmt.Sprintf(`-label:"%s"`, e))
+		}
+	}
+	if q.Inversions.Owner != nil {
+		for _, e := range q.Inversions.Owner {
+			parts = append(parts, fmt.Sprintf(`-owner:"%s"`, e))
+		}
+	}
+	if q.Inversions.Project != nil {
+		for _, e := range q.Inversions.Project {
+			parts = append(parts, fmt.Sprintf(`-project:"%s"`, e))
+		}
+	}
+	if q.Inversions.Requester != nil {
+		for _, e := range q.Inversions.Requester {
+			parts = append(parts, fmt.Sprintf(`-requester:"%s"`, e))
+		}
+	}
+	if q.Inversions.State != nil {
+		for _, e := range q.Inversions.State {
+			parts = append(parts, fmt.Sprintf(`-state:"%s"`, e))
+		}
+	}
+	if q.Inversions.Text != nil {
+		for _, e := range q.Inversions.Text {
+			parts = append(parts, fmt.Sprintf(`-"%s"`, e))
+		}
+	}
+	if q.Inversions.Type != nil {
+		for _, e := range q.Inversions.Type {
+			parts = append(parts, fmt.Sprintf(`-type:%s`, e))
+		}
+	}
+	return json.Marshal(strings.Join(parts, " "))
+}
+
+// SearchParams ...
+type SearchParams struct {
+	Next     string      `json:"next,omitempty"`
+	PageSize int         `json:"page_size,omitempty"`
+	Query    SearchQuery `json:"query,omitempty"`
+}
+
 // SearchResults represents the results of the search query.
 type SearchResults struct {
 	Data  []StorySearch `json:"data"`
@@ -1060,7 +1293,7 @@ type StorySlim struct {
 	Blocked             bool             `json:"blocked"`
 	Blocker             bool             `json:"blocker"`
 	CommentIDs          []int            `json:"comment_ids"`
-	Completed           time.Time        `json:"completed"`
+	Completed           bool             `json:"completed"`
 	CompletedAtOverride time.Time        `json:"completed_at_override"`
 	CreatedAt           time.Time        `json:"created_at"`
 	Deadline            time.Time        `json:"deadline"`

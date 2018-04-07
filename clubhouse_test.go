@@ -1280,6 +1280,7 @@ func TestUpdateStoryParams(t *testing.T) {
 		Expect: `{"workflow_state_id":80}`,
 	}}.Test(t)
 }
+
 func TestCRUDStories(t *testing.T) {
 	c := makeClient()
 	proj, err := c.CreateProject(&CreateProjectParams{
@@ -1421,6 +1422,313 @@ func TestCRUDStories(t *testing.T) {
 	})
 }
 
+func TestBulkStoryMethods(t *testing.T) {
+	c := makeClient()
+	proj, err := c.CreateProject(&CreateProjectParams{
+		Name: fmt.Sprintf("project %s", time.Now()),
+	})
+	if err != nil {
+		t.Fatal("error creating project", err)
+	}
+	defer c.DeleteProject(proj.ID)
+
+	stories, err := c.CreateStories([]CreateStoryParams{
+		{Name: "story 1", ProjectID: proj.ID},
+		{Name: "story 2", ProjectID: proj.ID},
+	})
+	if err != nil {
+		t.Fatal("unexpected error creating stories", err)
+	}
+	// cleanup, in case anything below fails
+	defer c.DeleteStory(stories[0].ID)
+	defer c.DeleteStory(stories[1].ID)
+
+	storyIDs := []int{}
+	for _, s := range stories {
+		storyIDs = append(storyIDs, s.ID)
+	}
+
+	// gotta archive to delete
+	updated, err := c.UpdateStories(&UpdateStoriesParams{
+		StoryIDs: storyIDs,
+		Archived: Archived,
+	})
+
+	if err != nil {
+		t.Fatal("unexpected error updating stories", err)
+	}
+
+	if !updated[0].Archived {
+		t.Error("should be archived")
+	}
+	if !updated[1].Archived {
+		t.Error("should be archived")
+	}
+
+	if err := c.DeleteStories(storyIDs); err != nil {
+		details := err.(ErrClientRequest)
+		fmt.Println("request: ", string(details.RequestBody))
+		fmt.Println("response: ", string(details.ResponseBody))
+		t.Error("unexpected error deleting", err)
+	}
+}
+
+func TestSearchQuery(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: SearchQuery{},
+		Expect: `""`,
+	}, {
+		Name:   "Epic",
+		Params: SearchQuery{Epic: "a"},
+		Expect: `"epic:\"a\""`,
+	}, {
+		Name:   "Estimate",
+		Params: SearchQuery{Estimate: 8},
+		Expect: `"estimate:8"`,
+	}, {
+		Name:   "HasAttachment",
+		Params: SearchQuery{HasAttachment: true},
+		Expect: `"has:attachment"`,
+	}, {
+		Name:   "HasComment",
+		Params: SearchQuery{HasComment: true},
+		Expect: `"has:comment"`,
+	}, {
+		Name:   "HasDeadline",
+		Params: SearchQuery{HasDeadline: true},
+		Expect: `"has:deadline"`,
+	}, {
+		Name:   "HasEpic",
+		Params: SearchQuery{HasEpic: true},
+		Expect: `"has:epic"`,
+	}, {
+		Name:   "HasTask",
+		Params: SearchQuery{HasTask: true},
+		Expect: `"has:task"`,
+	}, {
+		Name:   "ID",
+		Params: SearchQuery{ID: 1},
+		Expect: `"id:1"`,
+	}, {
+		Name:   "IsArchived",
+		Params: SearchQuery{IsArchived: true},
+		Expect: `"is:archived"`,
+	}, {
+		Name:   "IsBlocked",
+		Params: SearchQuery{IsBlocked: true},
+		Expect: `"is:blocked"`,
+	}, {
+		Name:   "IsBlocker",
+		Params: SearchQuery{IsBlocker: true},
+		Expect: `"is:blocker"`,
+	}, {
+		Name:   "IsDone",
+		Params: SearchQuery{IsDone: true},
+		Expect: `"is:done"`,
+	}, {
+		Name:   "IsOverdue",
+		Params: SearchQuery{IsOverdue: true},
+		Expect: `"is:overdue"`,
+	}, {
+		Name:   "IsStarted",
+		Params: SearchQuery{IsStarted: true},
+		Expect: `"is:started"`,
+	}, {
+		Name:   "IsUnestimated",
+		Params: SearchQuery{IsUnestimated: true},
+		Expect: `"is:unestimated"`,
+	}, {
+		Name:   "IsUnstarted",
+		Params: SearchQuery{IsUnstarted: true},
+		Expect: `"is:unstarted"`,
+	}, {
+		Name:   "Label",
+		Params: SearchQuery{Label: []string{"x", "y"}},
+		Expect: `"label:\"x\" label:\"y\""`,
+	}, {
+		Name:   "Owner",
+		Params: SearchQuery{Owner: []string{"x", "y"}},
+		Expect: `"owner:\"x\" owner:\"y\""`,
+	}, {
+		Name:   "Project",
+		Params: SearchQuery{Project: "x"},
+		Expect: `"project:\"x\""`,
+	}, {
+		Name:   "Requester",
+		Params: SearchQuery{Requester: "x"},
+		Expect: `"requester:\"x\""`,
+	}, {
+		Name:   "State",
+		Params: SearchQuery{State: "x"},
+		Expect: `"state:\"x\""`,
+	}, {
+		Name:   "Text",
+		Params: SearchQuery{Text: "freeform text"},
+		Expect: `"\"freeform text\""`,
+	}, {
+		Name:   "Type",
+		Params: SearchQuery{Type: "bug"},
+		Expect: `"type:bug"`,
+	}, {
+		Name: "Inversion: Epic",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Epic: []string{"a", "b"},
+		}},
+		Expect: `"-epic:\"a\" -epic:\"b\""`,
+	}, {
+		Name: "Inversion: Estimate",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Estimate: []int{8, 2},
+		}},
+		Expect: `"-estimate:8 -estimate:2"`,
+	}, {
+		Name: "Inversion: HasAttachment",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			HasAttachment: true,
+		}},
+		Expect: `"-has:attachment"`,
+	}, {
+		Name: "Inversion: HasComment",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			HasComment: true,
+		}},
+		Expect: `"-has:comment"`,
+	}, {
+		Name: "Inversion: HasDeadline",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			HasDeadline: true,
+		}},
+		Expect: `"-has:deadline"`,
+	}, {
+		Name: "Inversion: HasEpic",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			HasEpic: true}},
+		Expect: `"-has:epic"`,
+	}, {
+		Name: "Inversion: HasTask",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			HasTask: true,
+		}},
+		Expect: `"-has:task"`,
+	}, {
+		Name: "Inversion: ID",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			ID: []int{1, 2},
+		}},
+		Expect: `"-id:1 -id:2"`,
+	}, {
+		Name: "Inversion: IsArchived",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsArchived: true,
+		}},
+		Expect: `"-is:archived"`,
+	}, {
+		Name: "Inversion: IsBlocked",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsBlocked: true,
+		}},
+		Expect: `"-is:blocked"`,
+	}, {
+		Name: "Inversion: IsBlocker",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsBlocker: true,
+		}},
+		Expect: `"-is:blocker"`,
+	}, {
+		Name: "Inversion: IsDone",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsDone: true,
+		}},
+		Expect: `"-is:done"`,
+	}, {
+		Name: "Inversion: IsOverdue",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsOverdue: true,
+		}},
+		Expect: `"-is:overdue"`,
+	}, {
+		Name: "Inversion: IsStarted",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsStarted: true,
+		}},
+		Expect: `"-is:started"`,
+	}, {
+		Name: "Inversion: IsUnestimated",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsUnestimated: true,
+		}},
+		Expect: `"-is:unestimated"`,
+	}, {
+		Name: "Inversion: IsUnstarted",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			IsUnstarted: true,
+		}},
+		Expect: `"-is:unstarted"`,
+	}, {
+		Name: "Inversion: Label",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Label: []string{"x", "y"},
+		}},
+		Expect: `"-label:\"x\" -label:\"y\""`,
+	}, {
+		Name: "Inversion: Owner",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Owner: []string{"x", "y"},
+		}},
+		Expect: `"-owner:\"x\" -owner:\"y\""`,
+	}, {
+		Name: "Inversion: Project",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Project: []string{"x", "y"},
+		}},
+		Expect: `"-project:\"x\" -project:\"y\""`,
+	}, {
+		Name: "Inversion: Requester",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Requester: []string{"x", "y"},
+		}},
+		Expect: `"-requester:\"x\" -requester:\"y\""`,
+	}, {
+		Name: "Inversion: State",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			State: []string{"x", "y"},
+		}},
+		Expect: `"-state:\"x\" -state:\"y\""`,
+	}, {
+		Name: "Inversion: Text",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Text: []string{"freeform", "text"},
+		}},
+		Expect: `"-\"freeform\" -\"text\""`,
+	}, {
+		Name: "Inversion: Type",
+		Params: SearchQuery{Inversions: SearchQueryInversions{
+			Type: []StoryType{StoryTypeFeature, StoryTypeBug},
+		}},
+		Expect: `"-type:feature -type:bug"`,
+	}}.Test(t)
+}
+
+func TestSearchStories(t *testing.T) {
+	c := makeClient()
+	proj, err := c.CreateProject(&CreateProjectParams{
+		Name: fmt.Sprintf("project %s", time.Now()),
+	})
+	if err != nil {
+		t.Fatal("error creating project", err)
+	}
+	defer c.DeleteProject(proj.ID)
+	stories, err := c.CreateStories([]CreateStoryParams{
+		{Name: "story 1", ProjectID: proj.ID},
+		{Name: "story 2", ProjectID: proj.ID},
+	})
+	storyIDs := []int{stories[0].ID, stories[1].ID}
+	defer c.DeleteStories(storyIDs)
+
+	fmt.Println(stories)
+}
+
 // func TestCRUDProject(t *testing.T) {
 // 	t.Run("create", func(t *testing.T){})
 // 	t.Run("read", func(t *testing.T){})
@@ -1500,7 +1808,7 @@ func (ft fieldtest) Test(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			b, err := json.Marshal(&test.Params)
 			if err != nil {
-				t.Fatal("shouldn't get an error")
+				t.Fatal("shouldn't get an error", err)
 			}
 			if test.Expect != string(b) {
 				t.Errorf("%s != %s", string(b), test.Expect)
