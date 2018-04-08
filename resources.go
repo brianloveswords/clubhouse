@@ -1174,9 +1174,9 @@ func (q SearchQuery) MarshalJSON() ([]byte, error) {
 
 // SearchParams ...
 type SearchParams struct {
-	Next     string      `json:"next,omitempty"`
-	PageSize int         `json:"page_size,omitempty"`
-	Query    SearchQuery `json:"query,omitempty"`
+	Next     string       `json:"next,omitempty"`
+	PageSize int          `json:"page_size,omitempty"`
+	Query    *SearchQuery `json:"query,omitempty"`
 }
 
 // SearchResults represents the results of the search query.

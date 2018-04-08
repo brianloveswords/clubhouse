@@ -2,6 +2,7 @@ package clubhouse
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -11,9 +12,13 @@ import (
 	"time"
 )
 
-var testTimeString = "2018-04-20T16:20:00+04:00"
-var testTime, _ = time.Parse(time.RFC3339, testTimeString)
-var memberUUID string
+var (
+	testTimeString = "2018-04-20T16:20:00+04:00"
+	testTime, _    = time.Parse(time.RFC3339, testTimeString)
+	memberUUID     string
+
+	searchtest = flag.Bool("searchtest", false, "perform lengthy search test")
+)
 
 func TestMain(m *testing.M) {
 	c := makeClient()
@@ -1712,32 +1717,116 @@ func TestSearchQuery(t *testing.T) {
 	}}.Test(t)
 }
 
+// This test is unreliable: it relies on the Clubhouse API indexing the
+// newly-created stories within the time that the thread is sleeping.
+// Usually 30 seconds is enough, but on occassion the test has failed
+// because only 2 out of 3 stories have gotten indexed. This behavior
+// has been confirmed against the Clubhouse UI (the 3rd story doesn't
+// appear in the web search results, either).
+//
+// Because of this unreliability, combined with the fact this test needs
+// to sleep for at least 30 seconds to be even partially effective, we
+// will only run the test if the `-searchtest` flag is passed.
 func TestSearchStories(t *testing.T) {
+	if !*searchtest {
+		t.Skip("skipping search test")
+	}
+
 	c := makeClient()
+	projectName := fmt.Sprintf("project %s", time.Now())
 	proj, err := c.CreateProject(&CreateProjectParams{
-		Name: fmt.Sprintf("project %s", time.Now()),
+		Name: projectName,
 	})
+	defer c.DeleteProject(proj.ID)
+
 	if err != nil {
 		t.Fatal("error creating project", err)
 	}
-	defer c.DeleteProject(proj.ID)
 	stories, err := c.CreateStories([]CreateStoryParams{
-		{Name: "story 1", ProjectID: proj.ID},
-		{Name: "story 2", ProjectID: proj.ID},
+		{Name: "hit 1", ProjectID: proj.ID, Deadline: &testTime},
+		{Name: "hit 2", ProjectID: proj.ID, StoryType: StoryTypeChore},
+		{Name: "hit 3", ProjectID: proj.ID, StoryType: StoryTypeBug},
 	})
-	storyIDs := []int{stories[0].ID, stories[1].ID}
-	defer c.DeleteStories(storyIDs)
+	if err != nil {
+		t.Fatal("error creating stories")
+	}
+	defer c.DeleteStory(stories[0].ID)
+	defer c.DeleteStory(stories[1].ID)
+	defer c.DeleteStory(stories[2].ID)
 
-	fmt.Println(stories)
+	deadlineStory := stories[0]
+	choreStory := stories[1]
+
+	// must sleep in order to give Clubhouse time to index the new
+	// stories, otherwise no results will be found
+	fmt.Println("SearchResults: sleeping for 30s")
+	time.Sleep(30 * time.Second)
+
+	t.Run("search stories: all", func(t *testing.T) {
+		all, err := c.SearchStoriesAll(&SearchParams{
+			PageSize: 1,
+			Query: &SearchQuery{
+				Text: "hit",
+			},
+		})
+		if err != nil {
+			t.Fatal("unexpected error searching", err)
+		}
+
+		if len(all) != 3 {
+			t.Error("expected 3 results")
+		}
+	})
+
+	t.Run("search stories", func(t *testing.T) {
+		all, err := c.SearchStories(&SearchParams{
+			PageSize: 10,
+			Query: &SearchQuery{
+				Project: projectName,
+			},
+		})
+		if err != nil {
+			e, _ := err.(ErrClientRequest)
+			fmt.Println("response", string(e.ResponseBody))
+			t.Fatal("error searching", err)
+		}
+		deadline, err := c.SearchStories(&SearchParams{
+			PageSize: 25,
+			Query: &SearchQuery{
+				HasDeadline: true,
+			},
+		})
+		if err != nil {
+			e, _ := err.(ErrClientRequest)
+			fmt.Println("response", string(e.ResponseBody))
+			t.Fatal("error searching", err)
+		}
+		chore, err := c.SearchStories(&SearchParams{
+			PageSize: 25,
+			Query: &SearchQuery{
+				Type: StoryTypeChore,
+			},
+		})
+		if err != nil {
+			e, _ := err.(ErrClientRequest)
+			fmt.Println("response", string(e.ResponseBody))
+			t.Fatal("error searching", err)
+		}
+
+		fmt.Println(all)
+
+		if all.Total != 3 {
+			t.Error("expected 3 results from all")
+		}
+		if chore.Data[0].Name != choreStory.Name {
+			t.Error("expected 1 matching result for chore")
+		}
+		if deadline.Data[0].Name != deadlineStory.Name {
+			t.Error("expected 1 matching results for deadline")
+		}
+	})
+
 }
-
-// func TestCRUDProject(t *testing.T) {
-// 	t.Run("create", func(t *testing.T){})
-// 	t.Run("read", func(t *testing.T){})
-// 	t.Run("list", func(t *testing.T){})
-// 	t.Run("update", func(t *testing.T){})
-// 	t.Run("delete", func(t *testing.T){})
-// }
 
 /* helpers */
 

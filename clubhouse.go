@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path"
 	"reflect"
 	"strconv"
@@ -589,6 +590,46 @@ func (c *Client) UpdateStories(params *UpdateStoriesParams) ([]StorySlim, error)
 	return stories, nil
 }
 
+// SearchStories ...
+func (c *Client) SearchStories(params *SearchParams) (*SearchResults, error) {
+	results := SearchResults{}
+	uri := path.Join("search", "stories")
+	err := c.requestResource("GET", &results, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &results, nil
+}
+
+// SearchStoriesAll ...
+func (c *Client) SearchStoriesAll(params *SearchParams) ([]StorySearch, error) {
+	allResults := []StorySearch{}
+
+	for {
+		results := SearchResults{}
+		uri := path.Join("search", "stories")
+		err := c.requestResource("GET", &results, uri, params)
+		if err != nil {
+			return nil, err
+		}
+		allResults = append(allResults, results.Data...)
+		if results.Next == "" {
+			break
+		}
+
+		// the clubhouse API returns the whole URL to use as the "next"
+		// token. unfortunately, that doesn't really work for us, so we
+		// parse the URL and extract just the "next" query var from it
+		parsed, err := url.Parse(results.Next)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing next page url %s", err)
+		}
+		nextToken := parsed.Query().Get("next")
+		params.Next = nextToken
+	}
+	return allResults, nil
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {
@@ -609,6 +650,10 @@ type ErrClientRequest struct {
 
 func (e ErrClientRequest) Error() string {
 	return fmt.Sprintf("clubhouse client request error: %s %s: %s", e.Method, e.URL, e.Err)
+}
+
+type errMessage struct {
+	Message string
 }
 
 // RequestWithBody makes an HTTP request to the Clubhouse API.
@@ -696,7 +741,16 @@ func (c *Client) RequestWithBody(
 		err = ErrServerError
 	}
 
+	// TODO: I bet 400 errors also have a message?
 	if err != nil {
+		if err == ErrUnprocessable {
+			message := errMessage{}
+			jsonerr := json.Unmarshal(bytes, &message)
+			if jsonerr == nil {
+				err = fmt.Errorf("%s: %s", err, message.Message)
+			}
+		}
+
 		return nil, ErrClientRequest{
 			Err:          err,
 			URL:          url,
