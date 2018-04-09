@@ -1733,26 +1733,8 @@ func TestSearchStories(t *testing.T) {
 	}
 
 	c := makeClient()
-	projectName := fmt.Sprintf("project %s", time.Now())
-	proj, err := c.CreateProject(&CreateProjectParams{
-		Name: projectName,
-	})
-	defer c.DeleteProject(proj.ID)
-
-	if err != nil {
-		t.Fatal("error creating project", err)
-	}
-	stories, err := c.CreateStories([]CreateStoryParams{
-		{Name: "hit 1", ProjectID: proj.ID, Deadline: &testTime},
-		{Name: "hit 2", ProjectID: proj.ID, StoryType: StoryTypeChore},
-		{Name: "hit 3", ProjectID: proj.ID, StoryType: StoryTypeBug},
-	})
-	if err != nil {
-		t.Fatal("error creating stories")
-	}
-	defer c.DeleteStory(stories[0].ID)
-	defer c.DeleteStory(stories[1].ID)
-	defer c.DeleteStory(stories[2].ID)
+	proj, stories, cleanup := tempProjAndStories(t)
+	defer cleanup()
 
 	deadlineStory := stories[0]
 	choreStory := stories[1]
@@ -1782,7 +1764,7 @@ func TestSearchStories(t *testing.T) {
 		all, err := c.SearchStories(&SearchParams{
 			PageSize: 10,
 			Query: &SearchQuery{
-				Project: projectName,
+				Project: proj.Name,
 			},
 		})
 		if err != nil {
@@ -1813,8 +1795,6 @@ func TestSearchStories(t *testing.T) {
 			t.Fatal("error searching", err)
 		}
 
-		fmt.Println(all)
-
 		if all.Total != 3 {
 			t.Error("expected 3 results from all")
 		}
@@ -1825,39 +1805,120 @@ func TestSearchStories(t *testing.T) {
 			t.Error("expected 1 matching results for deadline")
 		}
 	})
+}
 
+func TestStoryLinkParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateStoryLinkParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "ObjectID",
+		Params: CreateStoryLinkParams{ObjectID: 10},
+		Expect: `{"object_id":10}`,
+	}, {
+		Name:   "SubjectID",
+		Params: CreateStoryLinkParams{SubjectID: 10},
+		Expect: `{"subject_id":10}`,
+	}, {
+		Name:   "Verb",
+		Params: CreateStoryLinkParams{Verb: VerbBlocks},
+		Expect: `{"verb":"blocks"}`,
+	}}.Test(t)
+}
+
+func TestCRUDStoryLinks(t *testing.T) {
+	c := makeClient()
+
+	_, stories, cleanup := tempProjAndStories(t)
+	defer cleanup()
+
+	storylink1, err := c.CreateStoryLink(&CreateStoryLinkParams{
+		SubjectID: stories[0].ID,
+		ObjectID:  stories[1].ID,
+		Verb:      VerbBlocks,
+	})
+	if err != nil {
+		t.Fatal("did not expect error creating story link", err)
+	}
+	storylink2, err := c.CreateStoryLink(&CreateStoryLinkParams{
+		SubjectID: stories[1].ID,
+		ObjectID:  stories[2].ID,
+		Verb:      VerbDuplicates,
+	})
+	if err != nil {
+		t.Fatal("did not expect error creating story link", err)
+	}
+	storylink3, err := c.CreateStoryLink(&CreateStoryLinkParams{
+		SubjectID: stories[2].ID,
+		ObjectID:  stories[0].ID,
+		Verb:      VerbRelatesTo,
+	})
+	if err != nil {
+		t.Fatal("did not expect error creating story link", err)
+	}
+
+	t.Run("creates", func(t *testing.T) {
+		if storylink1.Verb != VerbBlocks {
+			t.Error("wrong verb, expected blocks")
+		}
+		if storylink2.Verb != VerbDuplicates {
+			t.Error("wrong verb, expected duplicates")
+		}
+		if storylink3.Verb != VerbRelatesTo {
+			t.Error("wrong verb, expected relates to")
+		}
+	})
+	t.Run("read", func(t *testing.T) {
+		got, err := c.GetStoryLink(storylink1.ID)
+		if err != nil {
+			t.Error("did not expect error getting story link", err)
+		}
+		if !reflect.DeepEqual(got, storylink1) {
+			t.Error("got is not the same as expected, got is", got)
+		}
+	})
+	t.Run("delete", func(t *testing.T) {
+		if err := c.DeleteStoryLink(storylink1.ID); err != nil {
+			t.Error("unexpected error deleting story link", err)
+		}
+		if err := c.DeleteStoryLink(storylink2.ID); err != nil {
+			t.Error("unexpected error deleting story link", err)
+		}
+		if err := c.DeleteStoryLink(storylink3.ID); err != nil {
+			t.Error("unexpected error deleting story link", err)
+		}
+	})
 }
 
 /* helpers */
 
-// func snapshot(t *testing.T, name string, obj interface{}) {
-// 	got := fmt.Sprintf("%v", obj)
-// 	filename := filepath.Join("testdata", name+".snapshot")
-// 	if *update {
-// 		fmt.Printf("Updating snapshot %s\n", name)
-// 		file, err := os.Create(filename)
-// 		defer file.Close()
-// 		if err != nil {
-// 			panic(fmt.Errorf("could not create file %s: %s", name, err))
-// 		}
-// 		file.Write([]byte(got))
-// 		return
-// 	}
-
-// 	if *check {
-// 		fmt.Printf("%s: %s\n", name, got)
-// 		return
-// 	}
-
-// 	expect, err := ioutil.ReadFile(filename)
-// 	if err != nil {
-// 		panic(fmt.Errorf("could not read file %s: %s", name, err))
-// 	}
-
-// 	if string(expect) != string(got) {
-// 		t.Errorf("mismatch:\n%s \n!= \n%s", got, expect)
-// 	}
-// }
+func tempProjAndStories(t *testing.T) (*Project, []StorySlim, func()) {
+	c := makeClient()
+	projectName := fmt.Sprintf("project %s", time.Now())
+	proj, err := c.CreateProject(&CreateProjectParams{
+		Name: projectName,
+	})
+	if err != nil {
+		t.Fatal("error creating project", err)
+	}
+	stories, err := c.CreateStories([]CreateStoryParams{
+		{Name: "story 1", ProjectID: proj.ID},
+		{Name: "story 2", ProjectID: proj.ID},
+		{Name: "story 3", ProjectID: proj.ID},
+	})
+	if err != nil {
+		c.DeleteProject(proj.ID)
+		t.Fatal("error creating stories")
+	}
+	cleanup := func() {
+		c.DeleteStory(stories[0].ID)
+		c.DeleteStory(stories[1].ID)
+		c.DeleteStory(stories[2].ID)
+		c.DeleteProject(proj.ID)
+	}
+	return proj, stories, cleanup
+}
 
 type credentials struct {
 	AuthToken string

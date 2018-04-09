@@ -630,6 +630,34 @@ func (c *Client) SearchStoriesAll(params *SearchParams) ([]StorySearch, error) {
 	return allResults, nil
 }
 
+// CreateStoryLink ...
+func (c *Client) CreateStoryLink(params *CreateStoryLinkParams) (*StoryLink, error) {
+	result := StoryLink{}
+	uri := "story-links"
+	err := c.requestResource("POST", &result, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStoryLink ...
+func (c *Client) GetStoryLink(id int) (*StoryLink, error) {
+	result := StoryLink{}
+	uri := path.Join("story-links", strconv.Itoa(id))
+	err := c.requestResource("GET", &result, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DeleteStoryLink ...
+func (c *Client) DeleteStoryLink(id int) error {
+	uri := path.Join("story-links", strconv.Itoa(id))
+	return c.requestResource("DELETE", nil, uri, nil)
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {
