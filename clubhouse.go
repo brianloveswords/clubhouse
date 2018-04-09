@@ -658,6 +658,28 @@ func (c *Client) DeleteStoryLink(id int) error {
 	return c.requestResource("DELETE", nil, uri, nil)
 }
 
+// ListTeams ...
+func (c *Client) ListTeams() ([]Team, error) {
+	result := []Team{}
+	uri := "teams"
+	err := c.requestResource("GET", &result, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetTeam ...
+func (c *Client) GetTeam(id int) (*Team, error) {
+	result := Team{}
+	uri := path.Join("teams", strconv.Itoa(id))
+	err := c.requestResource("GET", &result, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Request makes an HTTP request to the Clubhouse API without a body. See
 // RequestWithBody for full documentation.
 func (c *Client) Request(method string, endpoint string) ([]byte, error) {

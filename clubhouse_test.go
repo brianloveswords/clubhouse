@@ -1891,6 +1891,26 @@ func TestCRUDStoryLinks(t *testing.T) {
 	})
 }
 
+func TestReadTeams(t *testing.T) {
+	c := makeClient()
+
+	teams, err := c.ListTeams()
+	if err != nil {
+		t.Fatal("couldn't get team list", err)
+	}
+
+	team := teams[0]
+
+	got, err := c.GetTeam(team.ID)
+	if err != nil {
+		t.Fatal("couldn't get team by id", err)
+	}
+
+	if team.Name != got.Name {
+		t.Error("teams not the same got", got)
+	}
+}
+
 /* helpers */
 
 func tempProjAndStories(t *testing.T) (*Project, []StorySlim, func()) {
