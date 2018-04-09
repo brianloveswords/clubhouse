@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"reflect"
 	"strconv"
@@ -277,6 +279,13 @@ func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
 	resource := "files"
 	buf := bytes.NewBuffer([]byte{})
 	mp := multipart.NewWriter(buf)
+
+	if os.Getenv("CLUBHOUSE_TEST_MODE") == "true" {
+		if err := mp.SetBoundary("predictableclubhousetestingboundarywowow"); err != nil {
+			log.Fatal("UploadFiles: error setting boundary", err)
+		}
+	}
+
 	for i, f := range fs {
 		p, err := mp.CreateFormFile(fmt.Sprintf("file%d", i), f.Name)
 		if err != nil {
@@ -859,6 +868,10 @@ func (c *Client) requestResource(
 		body, err = json.Marshal(params)
 		if err != nil {
 			return fmt.Errorf("could not marshal params, %s", err)
+		}
+
+		if os.Getenv("CLUBHOUSE_DEBUG") == "true" {
+			log.Print("body", string(body))
 		}
 	}
 	bytes, err := c.RequestWithBody(method, uri, body, nil)
