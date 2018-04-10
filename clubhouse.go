@@ -29,6 +29,9 @@ func (e ErrResponse) Error() string {
 	return fmt.Sprintf("%s (%d)", e.Message, e.Code)
 }
 
+// We use this a lot so let's alias it.
+var itoa = strconv.Itoa
+
 // Errors
 var (
 	ErrSchemaMismatch   = ErrResponse{400, "Schema mismatch"}
@@ -38,7 +41,8 @@ var (
 	ErrServerError      = ErrResponse{500, "Server error"}
 )
 
-// Defaults
+// Defaults. You can override any of these to change the default for all
+// clients created.
 var (
 	// Root URL for the API
 	DefaultRootURL = "https://api.clubhouse.io/api/"
@@ -50,6 +54,8 @@ var (
 	// round down to 3 since we need to use an int
 	DefaultLimiter = RateLimiter(3)
 
+	// DefaultHTTP client is, perhaps unsurprisingly, the default http
+	// client.
 	DefaultHTTPClient = http.DefaultClient
 )
 
@@ -110,103 +116,119 @@ type Client struct {
 }
 
 // ListCategories returns a list of all categories and their attributes
-func (c *Client) ListCategories() (Categories, error) {
-	categories := Categories{}
-	if err := c.getResource(&categories); err != nil {
+func (c *Client) ListCategories() ([]Category, error) {
+	resource := []Category{}
+	uri := "categories"
+	if err := c.RequestResource("GET", &resource, uri, nil); err != nil {
 		return nil, err
 	}
-	return categories, nil
+	return resource, nil
 }
 
 // GetCategory returns information about the selected category
 func (c *Client) GetCategory(id int) (*Category, error) {
-	category := Category{ID: id}
-	if err := c.getResource(&category); err != nil {
+	resource := Category{}
+	uri := path.Join("categories", itoa(id))
+	if err := c.RequestResource("GET", &resource, uri, nil); err != nil {
 		return nil, err
 	}
-	return &category, nil
+	return &resource, nil
 }
 
 // UpdateCategory allows you to replace a Category name with another
 // name. If you try to name a Category something that already exists,
 // you will get an ErrUnprocessable error.
 func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category, error) {
-	category := Category{ID: id}
-	if err := c.updateResource(&category, params); err != nil {
+	resource := Category{}
+	uri := path.Join("categories", itoa(id))
+	if err := c.RequestResource("PUT", &resource, uri, params); err != nil {
 		return nil, err
 	}
-	return &category, nil
+	return &resource, nil
 }
 
 // DeleteCategory deletes a category
 func (c *Client) DeleteCategory(id int) error {
-	category := Category{ID: id}
-	return c.deleteResource(&category)
+	uri := path.Join("categories", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // CreateCategory creates a new category. If Category is given a name
 // that already exists, you will get an ErrUnprocessable error.
 func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error) {
+	resource := Category{}
+	uri := "categories"
+
 	if params.Type == "" {
 		params.Type = CategoryTypeMilestone
 	}
-	category := Category{}
-	if err := c.createResource(&category, params); err != nil {
+
+	err := c.RequestResource("POST", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &category, nil
+	return &resource, nil
 }
 
 // ListEpics lists all the epics
-func (c *Client) ListEpics() (Epics, error) {
-	epics := Epics{}
-	if err := c.getResource(&epics); err != nil {
+func (c *Client) ListEpics() ([]Epic, error) {
+	resource := []Epic{}
+	uri := "epics"
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return epics, nil
+	return resource, nil
 }
 
 // CreateEpic ...
 func (c *Client) CreateEpic(params *CreateEpicParams) (*Epic, error) {
-	epic := Epic{}
-	if err := c.createResource(&epic, params); err != nil {
+	resource := Epic{}
+	uri := "epics"
+	err := c.RequestResource("POST", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &epic, nil
+	return &resource, nil
 }
 
 // GetEpic gets an epic by ID
 func (c *Client) GetEpic(id int) (*Epic, error) {
-	epic := Epic{ID: id}
-	if err := c.getResource(&epic); err != nil {
+	resource := Epic{}
+	uri := path.Join("epics", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return &epic, nil
+	return &resource, nil
 }
 
 // UpdateEpic ...
 func (c *Client) UpdateEpic(id int, params UpdateEpicParams) (*Epic, error) {
-	epic := Epic{ID: id}
-	if err := c.updateResource(&epic, params); err != nil {
+	resource := Epic{}
+	uri := path.Join("epics", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &epic, nil
+	return &resource, nil
 }
 
 // DeleteEpic ...
 func (c *Client) DeleteEpic(id int) error {
-	epic := Epic{ID: id}
-	return c.deleteResource(&epic)
+	uri := path.Join("epics", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // CreateEpicComment ...
 func (c *Client) CreateEpicComment(epicID int, params *CreateCommentParams) (*ThreadedComment, error) {
-	epic := Epic{ID: epicID}
-	comment := ThreadedComment{parent: &epic}
-	if err := c.createResource(&comment, params); err != nil {
+	resource := ThreadedComment{}
+	uri := path.Join("epics", itoa(epicID), "comments")
+	err := c.RequestResource("POST", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &comment, nil
+	return &resource, nil
 }
 
 // UpdateEpicComment ...
@@ -215,12 +237,13 @@ func (c *Client) UpdateEpicComment(
 	commentID int,
 	params *UpdateCommentParams,
 ) (*ThreadedComment, error) {
-	epic := Epic{ID: epicID}
-	comment := ThreadedComment{ID: commentID, parent: &epic}
-	if err := c.updateResource(&comment, params); err != nil {
+	resource := ThreadedComment{}
+	uri := path.Join("epics", itoa(epicID), "comments", itoa(commentID))
+	err := c.RequestResource("PUT", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &comment, nil
+	return &resource, nil
 }
 
 // CreateEpicCommentComment ...
@@ -229,43 +252,41 @@ func (c *Client) CreateEpicCommentComment(
 	commentID int,
 	params *CreateCommentParams,
 ) (*ThreadedComment, error) {
-	epic := Epic{ID: epicID}
-	comment := ThreadedComment{ID: commentID, parent: &epic}
-	if err := c.createResource(&comment, params); err != nil {
-		return nil, err
-	}
-	return &comment, nil
-}
-
-// ListEpicComments ...
-func (c *Client) ListEpicComments(epicID int) (ThreadedComments, error) {
-	resource := path.Join("epics", strconv.Itoa(epicID), "comments")
-	bytes, err := c.Request("GET", resource)
+	resource := ThreadedComment{}
+	uri := path.Join("epics", itoa(epicID), "comments", itoa(commentID))
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	comments := ThreadedComments{}
-	if err := json.Unmarshal(bytes, &comments); err != nil {
+	return &resource, nil
+}
+
+// ListEpicComments ...
+func (c *Client) ListEpicComments(epicID int) ([]ThreadedComment, error) {
+	resource := []ThreadedComment{}
+	uri := path.Join("epics", itoa(epicID), "comments")
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return comments, nil
+	return resource, nil
 }
 
 // GetEpicComment ...
 func (c *Client) GetEpicComment(epicID, commentID int) (*ThreadedComment, error) {
-	epic := Epic{ID: epicID}
-	comment := ThreadedComment{ID: commentID, parent: &epic}
-	if err := c.getResource(&comment); err != nil {
+	resource := ThreadedComment{}
+	uri := path.Join("epics", itoa(epicID), "comments", itoa(commentID))
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return &comment, nil
+	return &resource, nil
 }
 
 // DeleteEpicComment ...
 func (c *Client) DeleteEpicComment(epicID, commentID int) error {
-	epic := Epic{ID: epicID}
-	comment := ThreadedComment{ID: commentID, parent: &epic}
-	return c.deleteResource(&comment)
+	uri := path.Join("epics", itoa(epicID), "comments", itoa(commentID))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // FileUpload ...
@@ -276,10 +297,15 @@ type FileUpload struct {
 
 // UploadFiles ...
 func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
+	// FIXME: break this method up. the first half of it can be broken
+	// into a function that reqturns (body, header, error)
+
 	resource := "files"
 	buf := bytes.NewBuffer([]byte{})
 	mp := multipart.NewWriter(buf)
 
+	// use a non-random boundary when we're in test mode so the outgoing
+	// payload is predictable and repreated exactly.
 	if os.Getenv("CLUBHOUSE_TEST_MODE") == "true" {
 		if err := mp.SetBoundary("predictableclubhousetestingboundarywowow"); err != nil {
 			log.Fatal("UploadFiles: error setting boundary", err)
@@ -303,7 +329,7 @@ func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
 	body := buf.Bytes()
 	header := http.Header{}
 	header.Add("Content-Type", ct)
-	bytes, err := c.RequestWithBody("POST", resource, body, &header)
+	bytes, err := c.HTTPRequest("POST", resource, body, &header)
 	if err != nil {
 		return nil, fmt.Errorf("UploadFiles: error making request: %s", err)
 	}
@@ -315,224 +341,247 @@ func (c *Client) UploadFiles(fs []FileUpload) ([]File, error) {
 }
 
 // ListFiles ...
-func (c *Client) ListFiles() (Files, error) {
-	files := Files{}
-	if err := c.getResource(&files); err != nil {
+func (c *Client) ListFiles() ([]File, error) {
+	resource := []File{}
+	uri := path.Join("files")
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return files, nil
+	return resource, nil
 }
 
 // GetFile ...
 func (c *Client) GetFile(id int) (*File, error) {
-	file := File{ID: id}
-	if err := c.getResource(&file); err != nil {
+	resource := File{}
+	uri := path.Join("files", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
 		return nil, err
 	}
-	return &file, nil
+	return &resource, nil
 }
 
 // UpdateFile ...
 func (c *Client) UpdateFile(id int, params *UpdateFileParams) (*File, error) {
-	file := File{ID: id}
-	if err := c.updateResource(&file, params); err != nil {
+	resource := File{}
+	uri := path.Join("files", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
+	if err != nil {
 		return nil, err
 	}
-	return &file, nil
+	return &resource, nil
 }
 
 // DeleteFile ...
 func (c *Client) DeleteFile(id int) error {
-	file := File{ID: id}
-	return c.deleteResource(&file)
-}
-
-// ListLabels ...
-func (c *Client) ListLabels() (Labels, error) {
-	labels := Labels{}
-	err := c.getResource(&labels)
-	if err != nil {
-		return nil, err
-	}
-	return labels, nil
+	uri := path.Join("files", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // CreateLabel ...
 func (c *Client) CreateLabel(params *CreateLabelParams) (*Label, error) {
-	label := Label{}
-	err := c.createResource(&label, params)
+	resource := Label{}
+	uri := path.Join("labels")
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &label, nil
+	return &resource, nil
+}
+
+// ListLabels ...
+func (c *Client) ListLabels() ([]Label, error) {
+	resource := []Label{}
+	uri := path.Join("labels")
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
 }
 
 // GetLabel ...
 func (c *Client) GetLabel(id int) (*Label, error) {
-	label := Label{ID: id}
-	err := c.getResource(&label)
+	resource := Label{}
+	uri := path.Join("labels", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &label, nil
-}
-
-// DeleteLabel ...
-func (c *Client) DeleteLabel(id int) error {
-	label := Label{ID: id}
-	return c.deleteResource(&label)
+	return &resource, nil
 }
 
 // UpdateLabel ...
 func (c *Client) UpdateLabel(id int, params *UpdateLabelParams) (*Label, error) {
-	label := Label{ID: id}
-	err := c.updateResource(&label, params)
+	resource := Label{}
+	uri := path.Join("labels", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &label, nil
+	return &resource, nil
+}
+
+// DeleteLabel ...
+func (c *Client) DeleteLabel(id int) error {
+	uri := path.Join("labels", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // ListMembers ...
-func (c *Client) ListMembers() (Members, error) {
-	members := Members{}
-	err := c.getResource(&members)
+func (c *Client) ListMembers() ([]Member, error) {
+	resource := []Member{}
+	uri := path.Join("members")
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return members, nil
+	return resource, nil
 }
 
 // GetMember ...
-func (c *Client) GetMember(id string) (*Member, error) {
-	member := Member{ID: id}
-	err := c.getResource(&member)
+func (c *Client) GetMember(uuid string) (*Member, error) {
+	resource := Member{}
+	uri := path.Join("members", uuid)
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &member, nil
-}
-
-// ListMilestones ...
-func (c *Client) ListMilestones() (Milestones, error) {
-	milestones := Milestones{}
-	err := c.getResource(&milestones)
-	if err != nil {
-		return nil, err
-	}
-	return milestones, nil
+	return &resource, nil
 }
 
 // CreateMilestone ...
 func (c *Client) CreateMilestone(params *CreateMilestoneParams) (*Milestone, error) {
-	milestone := Milestone{}
-	err := c.createResource(&milestone, params)
+	resource := Milestone{}
+	uri := path.Join("milestones")
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &milestone, nil
+	return &resource, nil
+}
+
+// ListMilestones ...
+func (c *Client) ListMilestones() ([]Milestone, error) {
+	resource := []Milestone{}
+	uri := path.Join("milestones")
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
 }
 
 // GetMilestone ...
 func (c *Client) GetMilestone(id int) (*Milestone, error) {
-	milestone := Milestone{ID: id}
-	err := c.getResource(&milestone)
+	resource := Milestone{}
+	uri := path.Join("milestones", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &milestone, nil
-}
-
-// DeleteMilestone ...
-func (c *Client) DeleteMilestone(id int) error {
-	milestone := Milestone{ID: id}
-	return c.deleteResource(&milestone)
+	return &resource, nil
 }
 
 // UpdateMilestone ...
 func (c *Client) UpdateMilestone(id int, params *UpdateMilestoneParams) (*Milestone, error) {
-	milestone := Milestone{ID: id}
-	err := c.updateResource(&milestone, params)
+	resource := Milestone{}
+	uri := path.Join("milestones", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &milestone, nil
+	return &resource, nil
 }
 
-// ListProjects ...
-func (c *Client) ListProjects() (Projects, error) {
-	projects := Projects{}
-	err := c.getResource(&projects)
-	if err != nil {
-		return nil, err
-	}
-	return projects, nil
+// DeleteMilestone ...
+func (c *Client) DeleteMilestone(id int) error {
+	uri := path.Join("milestones", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // CreateProject ...
 func (c *Client) CreateProject(params *CreateProjectParams) (*Project, error) {
-	project := Project{}
-	err := c.createResource(&project, params)
+	resource := Project{}
+	uri := path.Join("projects")
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &project, nil
+	return &resource, nil
+}
+
+// ListProjects ...
+func (c *Client) ListProjects() ([]Project, error) {
+	resource := []Project{}
+	uri := path.Join("projects")
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
 }
 
 // GetProject ...
 func (c *Client) GetProject(id int) (*Project, error) {
-	project := Project{ID: id}
-	err := c.getResource(&project)
+	resource := Project{}
+	uri := path.Join("projects", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &project, nil
-}
-
-// DeleteProject ...
-func (c *Client) DeleteProject(id int) error {
-	project := Project{ID: id}
-	return c.deleteResource(&project)
+	return &resource, nil
 }
 
 // UpdateProject ...
 func (c *Client) UpdateProject(id int, params *UpdateProjectParams) (*Project, error) {
-	project := Project{ID: id}
-	err := c.updateResource(&project, params)
+	resource := Project{}
+	uri := path.Join("projects", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &project, nil
+	return &resource, nil
+}
+
+// DeleteProject ...
+func (c *Client) DeleteProject(id int) error {
+	uri := path.Join("projects", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // ListRepositories ...
-func (c *Client) ListRepositories() (Repositories, error) {
-	repos := Repositories{}
-	err := c.getResource(&repos)
+func (c *Client) ListRepositories() ([]Repository, error) {
+	resource := []Repository{}
+	uri := path.Join("repositories")
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return repos, nil
+	return resource, nil
 }
 
 // GetRepository ...
 func (c *Client) GetRepository(id int) (*Repository, error) {
-	repo := Repository{ID: id}
-	err := c.getResource(&repo)
+	resource := Repository{}
+	uri := path.Join("repositories", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &repo, nil
+	return &resource, nil
 }
 
 // CreateStory ...
 func (c *Client) CreateStory(params *CreateStoryParams) (*Story, error) {
-	story := Story{}
-	err := c.createResource(&story, params)
+	resource := Story{}
+	uri := path.Join("stories")
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &story, nil
+	return &resource, nil
 }
 
 type createStoriesParam struct {
@@ -541,30 +590,31 @@ type createStoriesParam struct {
 
 // CreateStories ...
 func (c *Client) CreateStories(plist []CreateStoryParams) ([]StorySlim, error) {
-	stories := []StorySlim{}
-	params := createStoriesParam{Stories: plist}
+	resource := []StorySlim{}
 	uri := path.Join("stories", "bulk")
-	err := c.requestResource("POST", &stories, uri, params)
+	params := createStoriesParam{Stories: plist}
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return stories, nil
+	return resource, nil
 }
 
 // GetStory ...
 func (c *Client) GetStory(id int) (*Story, error) {
-	story := Story{ID: id}
-	err := c.getResource(&story)
+	resource := Story{}
+	uri := path.Join("stories", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &story, nil
+	return &resource, nil
 }
 
 // DeleteStory ...
 func (c *Client) DeleteStory(id int) error {
-	story := Story{ID: id}
-	return c.deleteResource(&story)
+	uri := path.Join("stories", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 type deleteStoriesParam struct {
@@ -574,125 +624,118 @@ type deleteStoriesParam struct {
 // DeleteStories ...
 func (c *Client) DeleteStories(ids []int) error {
 	uri := path.Join("stories", "bulk")
-	param := deleteStoriesParam{StoryIDs: ids}
-	return c.requestResource("DELETE", nil, uri, param)
+	params := deleteStoriesParam{StoryIDs: ids}
+	return c.RequestResource("DELETE", nil, uri, params)
 }
 
 // UpdateStory ...
 func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) {
-	story := Story{ID: id}
-	err := c.updateResource(&story, params)
+	resource := Story{}
+	uri := path.Join("stories", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &story, nil
+	return &resource, nil
 }
 
 // UpdateStories ...
 func (c *Client) UpdateStories(params *UpdateStoriesParams) ([]StorySlim, error) {
-	stories := []StorySlim{}
+	resource := []StorySlim{}
 	uri := path.Join("stories", "bulk")
-	err := c.requestResource("PUT", &stories, uri, params)
+	err := c.RequestResource("PUT", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return stories, nil
+	return resource, nil
 }
 
 // SearchStories ...
 func (c *Client) SearchStories(params *SearchParams) (*SearchResults, error) {
-	results := SearchResults{}
+	resource := SearchResults{}
 	uri := path.Join("search", "stories")
-	err := c.requestResource("GET", &results, uri, params)
+	err := c.RequestResource("GET", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &results, nil
+	return &resource, nil
 }
 
 // SearchStoriesAll ...
 func (c *Client) SearchStoriesAll(params *SearchParams) ([]StorySearch, error) {
-	allResults := []StorySearch{}
+	collected := []StorySearch{}
 
 	for {
-		results := SearchResults{}
-		uri := path.Join("search", "stories")
-		err := c.requestResource("GET", &results, uri, params)
+		page, err := c.SearchStories(params)
 		if err != nil {
 			return nil, err
 		}
-		allResults = append(allResults, results.Data...)
-		if results.Next == "" {
+		collected = append(collected, page.Data...)
+		if page.Next == "" {
 			break
 		}
 
 		// the clubhouse API returns the whole URL to use as the "next"
 		// token. unfortunately, that doesn't really work for us, so we
 		// parse the URL and extract just the "next" query var from it
-		parsed, err := url.Parse(results.Next)
+		urlparts, err := url.Parse(page.Next)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing next page url %s", err)
 		}
-		nextToken := parsed.Query().Get("next")
-		params.Next = nextToken
+		next := urlparts.Query().Get("next")
+		params.Next = next
 	}
-	return allResults, nil
+	return collected, nil
 }
 
 // CreateStoryLink ...
 func (c *Client) CreateStoryLink(params *CreateStoryLinkParams) (*StoryLink, error) {
-	result := StoryLink{}
+	resource := StoryLink{}
 	uri := "story-links"
-	err := c.requestResource("POST", &result, uri, params)
+	err := c.RequestResource("POST", &resource, uri, params)
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &resource, nil
 }
 
 // GetStoryLink ...
 func (c *Client) GetStoryLink(id int) (*StoryLink, error) {
-	result := StoryLink{}
-	uri := path.Join("story-links", strconv.Itoa(id))
-	err := c.requestResource("GET", &result, uri, nil)
+	resource := StoryLink{}
+	uri := path.Join("story-links", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &resource, nil
 }
 
 // DeleteStoryLink ...
 func (c *Client) DeleteStoryLink(id int) error {
-	uri := path.Join("story-links", strconv.Itoa(id))
-	return c.requestResource("DELETE", nil, uri, nil)
+	uri := path.Join("story-links", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
 // ListTeams ...
 func (c *Client) ListTeams() ([]Team, error) {
-	result := []Team{}
+	resource := []Team{}
 	uri := "teams"
-	err := c.requestResource("GET", &result, uri, nil)
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	return resource, nil
 }
 
 // GetTeam ...
 func (c *Client) GetTeam(id int) (*Team, error) {
-	result := Team{}
-	uri := path.Join("teams", strconv.Itoa(id))
-	err := c.requestResource("GET", &result, uri, nil)
+	resource := Team{}
+	uri := path.Join("teams", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
-}
-
-// Request makes an HTTP request to the Clubhouse API without a body. See
-// RequestWithBody for full documentation.
-func (c *Client) Request(method string, endpoint string) ([]byte, error) {
-	return c.RequestWithBody(method, endpoint, []byte{}, nil)
+	return &resource, nil
 }
 
 // ErrClientRequest is returned when the client runs into
@@ -715,7 +758,7 @@ type errMessage struct {
 	Message string
 }
 
-// RequestWithBody makes an HTTP request to the Clubhouse API.
+// HTTPRequest makes an HTTP request to the Clubhouse API.
 //
 // Ideally you should be able to use the table type methods
 // (List/Get/Update/Delete) and shouldn't have to use this too much.
@@ -723,7 +766,7 @@ type errMessage struct {
 // endpoint will be combined with the client's RootlURL, Version and
 // BaseID, to create the complete URL. endpoint is expected to already
 // be encoded; if necessary, use url.PathEscape before passing
-// RequestWithBody.
+// HTTPRequest.
 //
 // options takes a value that satisfies the QueryEncoder interface,
 // which is a type that has an `Encode() string` method. See the Options
@@ -731,7 +774,7 @@ type errMessage struct {
 // instance of url.Values.
 //
 // If client is missing AuthToken, this method will panic.
-func (c *Client) RequestWithBody(
+func (c *Client) HTTPRequest(
 	method string,
 	endpoint string,
 	content []byte,
@@ -823,38 +866,7 @@ func (c *Client) RequestWithBody(
 	return bytes, nil
 }
 
-func (c *Client) getResource(r Resource) error {
-	bytes, err := c.Request("GET", r.MakeURL())
-	if err != nil {
-		return err
-	}
-	if len(bytes) > 0 {
-		return json.Unmarshal(bytes, r)
-	}
-	return nil
-}
-func (c *Client) deleteResource(r Resource) error {
-	_, err := c.Request("DELETE", r.MakeURL())
-	return err
-}
-func (c *Client) createResource(r Resource, params interface{}) error {
-	return c.createOrUpdateResource("POST", r, params)
-}
-func (c *Client) updateResource(r Resource, params interface{}) error {
-	return c.createOrUpdateResource("PUT", r, params)
-}
-func (c *Client) createOrUpdateResource(m string, r Resource, p interface{}) error {
-	body, err := json.Marshal(p)
-	if err != nil {
-		return fmt.Errorf("could not marshal params, %s", err)
-	}
-	bytes, err := c.RequestWithBody(m, r.MakeURL(), body, nil)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(bytes, &r)
-}
-func (c *Client) requestResource(
+func (c *Client) RequestResource(
 	method string,
 	resource interface{},
 	uri string,
@@ -874,7 +886,7 @@ func (c *Client) requestResource(
 			log.Print("body", string(body))
 		}
 	}
-	bytes, err := c.RequestWithBody(method, uri, body, nil)
+	bytes, err := c.HTTPRequest(method, uri, body, nil)
 	if err != nil {
 		return err
 	}

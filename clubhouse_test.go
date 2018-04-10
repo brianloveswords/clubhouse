@@ -37,10 +37,11 @@ func TestMain(m *testing.M) {
 		log.Fatal("couldn't get member list", err)
 	}
 	var (
-		activemembers = Members{}
+		activemembers = []Member{}
 		names         = []string{}
 		namelist      string
 	)
+
 	for _, m := range members {
 		if m.Disabled {
 			continue

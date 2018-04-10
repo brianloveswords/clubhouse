@@ -3,16 +3,9 @@ package clubhouse
 import (
 	"encoding/json"
 	"fmt"
-	"path"
-	"strconv"
 	"strings"
 	"time"
 )
-
-// Resource ...
-type Resource interface {
-	MakeURL() string
-}
 
 // State ...
 type State string
@@ -54,22 +47,6 @@ type Category struct {
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`
 	UpdatedAt  time.Time `json:"updated_at"`
-}
-
-// MakeURL ...
-func (c *Category) MakeURL() string {
-	if c.ID == 0 && c.Name == "" {
-		return "categories"
-	}
-	return path.Join("categories", strconv.Itoa(c.ID))
-}
-
-// Categories is a Category slice
-type Categories []Category
-
-// MakeURL ...
-func (c *Categories) MakeURL() string {
-	return "categories"
 }
 
 // Comment is any note added within the Comment field of a Story.
@@ -423,22 +400,6 @@ type Epic struct {
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
-// MakeURL ...
-func (e *Epic) MakeURL() string {
-	if e.ID == 0 && e.Name == "" {
-		return "epics"
-	}
-	return path.Join("epics", strconv.Itoa(e.ID))
-}
-
-// Epics ...
-type Epics []Epic
-
-// MakeURL ...
-func (e Epics) MakeURL() string {
-	return "epics"
-}
-
 // CreateEpicParams ...
 type CreateEpicParams struct {
 	CompletedAtOverride *time.Time          `json:"completed_at_override,omitempty"`
@@ -564,22 +525,6 @@ type UpdateFileParams struct {
 	UploaderID  *string    `json:"uploader_id,omitempty"`
 }
 
-// MakeURL ...
-func (f File) MakeURL() string {
-	if f.ID == 0 {
-		return "files"
-	}
-	return path.Join("files", strconv.Itoa(f.ID))
-}
-
-// Files ...
-type Files []File
-
-// MakeURL ...
-func (f Files) MakeURL() string {
-	return "files"
-}
-
 // Icon is used to attach images to Organizations, Members, and Loading
 // screens in the Clubhouse web application.
 type Icon struct {
@@ -609,22 +554,6 @@ type Label struct {
 	Name       string     `json:"name"`
 	Stats      LabelStats `json:"stats"`
 	UpdatedAt  time.Time  `json:"updated_at"`
-}
-
-// MakeURL ...
-func (l Label) MakeURL() string {
-	if l.ID == 0 {
-		return "labels"
-	}
-	return path.Join("labels", strconv.Itoa(l.ID))
-}
-
-// Labels ...
-type Labels []Label
-
-// MakeURL ...
-func (l Labels) MakeURL() string {
-	return "labels"
 }
 
 // CreateLabelParams represents request parameters for creating a Label
@@ -705,22 +634,6 @@ type Member struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-// MakeURL ...
-func (m Member) MakeURL() string {
-	if m.ID == "" {
-		return "members"
-	}
-	return path.Join("members", m.ID)
-}
-
-// Members ...
-type Members []Member
-
-// MakeURL ...
-func (m Members) MakeURL() string {
-	return "members"
-}
-
 // Milestone is a collection of Epics that represent a release or some
 // other large initiative that your organization is working on.
 type Milestone struct {
@@ -738,22 +651,6 @@ type Milestone struct {
 	StartedAtOverride   time.Time  `json:"started_at_override"`
 	State               State      `json:"state"`
 	UpdatedAt           time.Time  `json:"updated_at"`
-}
-
-// MakeURL ...
-func (m Milestone) MakeURL() string {
-	if m.ID == 0 {
-		return "milestones"
-	}
-	return path.Join("milestones", strconv.Itoa(m.ID))
-}
-
-// Milestones ...
-type Milestones []Milestone
-
-// MakeURL ...
-func (m Milestones) MakeURL() string {
-	return "milestones"
 }
 
 // CreateMilestoneParams ...
@@ -847,22 +744,6 @@ type Project struct {
 	UpdatedAt         time.Time    `json:"updated_at"`
 }
 
-// MakeURL ...
-func (p Project) MakeURL() string {
-	if p.ID == 0 {
-		return "projects"
-	}
-	return path.Join("projects", strconv.Itoa(p.ID))
-}
-
-// Projects ...
-type Projects []Project
-
-// MakeURL ...
-func (p Projects) MakeURL() string {
-	return "projects"
-}
-
 // CreateProjectParams ...
 type CreateProjectParams struct {
 	Abbreviation    string     `json:"abbreviation,omitempty"`
@@ -925,22 +806,6 @@ type Repository struct {
 	Type       string    `json:"type"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	URL        string    `json:"url"`
-}
-
-// MakeURL ...
-func (r Repository) MakeURL() string {
-	if r.ID == 0 {
-		return "repositories"
-	}
-	return path.Join("repositories", strconv.Itoa(r.ID))
-}
-
-// Repositories ...
-type Repositories []Repository
-
-// MakeURL ...
-func (m Repositories) MakeURL() string {
-	return "repositories"
 }
 
 // SearchQuery ...
@@ -1227,22 +1092,6 @@ type Story struct {
 	WorflowStateID      int              `json:"worflow_state_id"`
 }
 
-// MakeURL ...
-func (s *Story) MakeURL() string {
-	if s.ID == 0 && s.Name == "" {
-		return "stories"
-	}
-	return path.Join("stories", strconv.Itoa(s.ID))
-}
-
-// Stories is a Story slice
-type Stories []Story
-
-// MakeURL ...
-func (s *Stories) MakeURL() string {
-	return "stories"
-}
-
 // StoryLink represents a semantic relationships between two
 // stories. Relationship types are relates to, blocks / blocked by, and
 // duplicates / is duplicated by. The format is subject -> link ->
@@ -1358,7 +1207,6 @@ type Team struct {
 
 // ThreadedComment represents Comments associated with Epic Discussions.
 type ThreadedComment struct {
-	parent     Resource
 	AuthorID   string            `json:"author_id"`
 	Comments   []ThreadedComment `json:"comments"`
 	CreatedAt  time.Time         `json:"created_at"`
@@ -1370,18 +1218,6 @@ type ThreadedComment struct {
 	Text       string            `json:"text"`
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
-
-// MakeURL ...
-func (c ThreadedComment) MakeURL() string {
-	base := c.parent.MakeURL()
-	if c.ID == 0 {
-		return path.Join(base, "comments")
-	}
-	return path.Join(base, "comments", strconv.Itoa(c.ID))
-}
-
-// ThreadedComments ...
-type ThreadedComments []ThreadedComment
 
 // TypedStoryLink represents the type of Story Link. The string can be
 // subject or object.
