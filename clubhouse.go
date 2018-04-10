@@ -19,6 +19,9 @@ import (
 	"go.uber.org/ratelimit"
 )
 
+// We use this a lot so let's alias it.
+var itoa = strconv.Itoa
+
 // ErrResponse ...
 type ErrResponse struct {
 	Code    int
@@ -28,9 +31,6 @@ type ErrResponse struct {
 func (e ErrResponse) Error() string {
 	return fmt.Sprintf("%s (%d)", e.Message, e.Code)
 }
-
-// We use this a lot so let's alias it.
-var itoa = strconv.Itoa
 
 // Errors
 var (
@@ -115,6 +115,23 @@ type Client struct {
 	Limiter    ratelimit.Limiter
 }
 
+// CreateCategory creates a new category. If Category is given a name
+// that already exists, you will get an ErrUnprocessable error.
+func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error) {
+	resource := Category{}
+	uri := "categories"
+
+	if params.Type == "" {
+		params.Type = CategoryTypeMilestone
+	}
+
+	err := c.RequestResource("POST", &resource, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
 // ListCategories returns a list of all categories and their attributes
 func (c *Client) ListCategories() ([]Category, error) {
 	resource := []Category{}
@@ -151,23 +168,6 @@ func (c *Client) UpdateCategory(id int, params *UpdateCategoryParams) (*Category
 func (c *Client) DeleteCategory(id int) error {
 	uri := path.Join("categories", itoa(id))
 	return c.RequestResource("DELETE", nil, uri, nil)
-}
-
-// CreateCategory creates a new category. If Category is given a name
-// that already exists, you will get an ErrUnprocessable error.
-func (c *Client) CreateCategory(params *CreateCategoryParams) (*Category, error) {
-	resource := Category{}
-	uri := "categories"
-
-	if params.Type == "" {
-		params.Type = CategoryTypeMilestone
-	}
-
-	err := c.RequestResource("POST", &resource, uri, params)
-	if err != nil {
-		return nil, err
-	}
-	return &resource, nil
 }
 
 // ListEpics lists all the epics
@@ -915,9 +915,13 @@ func (c *Client) checkSetup() {
 }
 
 func (c *Client) makeURL(resource string) string {
-	uri := path.Join(c.Version, resource)
-	uri += "?token=" + c.AuthToken
-	return c.RootURL + uri
+	urlparts, err := url.Parse(c.RootURL)
+	if err != nil {
+		panic(fmt.Errorf("could not parse RootURL %s", err))
+	}
+	urlparts.Path = path.Join(urlparts.Path, c.Version, resource)
+	urlparts.RawQuery = "token=" + c.AuthToken
+	return urlparts.String()
 }
 
 type nullable []struct {
