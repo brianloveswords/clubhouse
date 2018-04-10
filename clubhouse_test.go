@@ -984,8 +984,8 @@ func TestCRUDProjects(t *testing.T) {
 		}
 	})
 	t.Run("delete", func(t *testing.T) {
-		for _, l := range projects {
-			if err := c.DeleteProject(l.ID); err != nil {
+		for _, p := range projects {
+			if err := c.DeleteProject(p.ID); err != nil {
 				t.Fatal("did not expect error deleting project", err)
 			}
 		}
@@ -1750,8 +1750,8 @@ func TestSearchStories(t *testing.T) {
 
 	// must sleep in order to give Clubhouse time to index the new
 	// stories, otherwise no results will be found
-	fmt.Println("SearchResults: sleeping for 30s")
-	time.Sleep(30 * time.Second)
+	fmt.Println("SearchResults: sleeping for 60s")
+	time.Sleep(60 * time.Second)
 
 	t.Run("search stories: all", func(t *testing.T) {
 		all, err := c.SearchStoriesAll(&SearchParams{
@@ -1805,7 +1805,7 @@ func TestSearchStories(t *testing.T) {
 		}
 
 		if all.Total != 3 {
-			t.Error("expected 3 results from all")
+			t.Fatal("expected 3 results from all, got", all.Total)
 		}
 		if chore.Data[0].Name != choreStory.Name {
 			t.Error("expected 1 matching result for chore")
@@ -1839,14 +1839,13 @@ func TestStoryLinkParams(t *testing.T) {
 func TestCRUDStoryLinks(t *testing.T) {
 	// fuck it I'm tired, I can't figure out why this doesn't work
 	// offline right noq, skip it.
-	t.SkipNow()
+	// t.SkipNow()
 
 	c := makeClient()
 
 	_, stories, cleanup := tempProjAndStories(t)
 	defer cleanup()
 
-	// (ef7c5d874770f9681df1705c7f0921e714f68a5a)
 	os.Setenv("WIRETAP_DEBUG", "true")
 	os.Setenv("CLUBHOUSE_DEBUG", "true")
 	storylink1, err := c.CreateStoryLink(&CreateStoryLinkParams{
@@ -1931,6 +1930,221 @@ func TestReadTeams(t *testing.T) {
 	}
 }
 
+// List is the only verb available for the Workflow resource.
+func TestListWorkflows(t *testing.T) {
+	c := makeClient()
+
+	workflows, err := c.ListWorkflows()
+	if err != nil {
+		t.Fatal("expected workflows, got", err)
+	}
+
+	et := workflows[0].EntityType
+	if et != "workflow" {
+		t.Error("expected workflow, got", et)
+	}
+}
+
+func TestCreateLinkedFileParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: CreateLinkedFileParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "ContentType",
+		Params: CreateLinkedFileParams{ContentType: "text/plain"},
+		Expect: `{"content_type":"text/plain"}`,
+	}, {
+		Name:   "Description",
+		Params: CreateLinkedFileParams{Description: "zelda is the boy"},
+		Expect: `{"description":"zelda is the boy"}`,
+	}, {
+		Name:   "Name",
+		Params: CreateLinkedFileParams{Name: "the linked file"},
+		Expect: `{"name":"the linked file"}`,
+	}, {
+		Name:   "Size",
+		Params: CreateLinkedFileParams{Size: 77},
+		Expect: `{"size":77}`,
+	}, {
+		Name:   "StoryID",
+		Params: CreateLinkedFileParams{StoryID: 888},
+		Expect: `{"story_id":888}`,
+	}, {
+		Name:   "ThumbnailURL",
+		Params: CreateLinkedFileParams{ThumbnailURL: "toes"},
+		Expect: `{"thumbnail_url":"toes"}`,
+	}, {
+		Name:   "Type",
+		Params: CreateLinkedFileParams{Type: LinkedFileTypeGoogle},
+		Expect: `{"type":"google"}`,
+	}, {
+		Name:   "UploaderID",
+		Params: CreateLinkedFileParams{UploaderID: "mercury rev"},
+		Expect: `{"uploader_id":"mercury rev"}`,
+	}, {
+		Name:   "URL",
+		Params: CreateLinkedFileParams{URL: "not even a url"},
+		Expect: `{"url":"not even a url"}`,
+	}}.Test(t)
+}
+
+func TestUpdateLinkedFileParams(t *testing.T) {
+	fieldtest{{
+		Name:   "empty",
+		Params: UpdateLinkedFileParams{},
+		Expect: `{}`,
+	}, {
+		Name:   "Description",
+		Params: UpdateLinkedFileParams{Description: String("zelda is the boy")},
+		Expect: `{"description":"zelda is the boy"}`,
+	}, {
+		Name:   "Name",
+		Params: UpdateLinkedFileParams{Name: String("the linked file")},
+		Expect: `{"name":"the linked file"}`,
+	}, {
+		Name:   "Size",
+		Params: UpdateLinkedFileParams{Size: Int(77)},
+		Expect: `{"size":"77"}`,
+	}, {
+		Name:   "ThumbnailURL",
+		Params: UpdateLinkedFileParams{ThumbnailURL: String("toes")},
+		Expect: `{"thumbnail_url":"toes"}`,
+	}, {
+		Name:   "Type",
+		Params: UpdateLinkedFileParams{Type: LinkedFileTypeGoogle},
+		Expect: `{"type":"google"}`,
+	}, {
+		Name:   "UploaderID",
+		Params: UpdateLinkedFileParams{UploaderID: String("mercury rev")},
+		Expect: `{"uploader_id":"mercury rev"}`,
+	}, {
+		Name:   "URL",
+		Params: UpdateLinkedFileParams{URL: String("not even a url")},
+		Expect: `{"url":"not even a url"}`,
+	}}.Test(t)
+}
+
+func TestCRUDLinkedFiles(t *testing.T) {
+	var (
+		c      = makeClient()
+		params = CreateLinkedFileParams{
+			ContentType:  "text/plain",
+			Description:  "just an example file",
+			Name:         "example dot com",
+			Size:         1023,
+			ThumbnailURL: "https://example.com/thumb.png",
+			Type:         LinkedFileTypeURL,
+			URL:          "https://example.com",
+			UploaderID:   memberUUID,
+		}
+		file, err = c.CreateLinkedFile(params)
+
+		files []LinkedFile
+	)
+
+	if err != nil {
+		t.Fatal("couldn't create linked file", err)
+	}
+
+	t.Run("create", func(t *testing.T) {
+		if file.Name != params.Name {
+			t.Error("Name didn't match", file.Name, params.Name)
+		}
+		if file.URL != params.URL {
+			t.Error("URL didn't match", file.URL, params.URL)
+		}
+		if string(file.Type) != string(params.Type) {
+			t.Error("Type didn't match", file.Type, params.Type)
+		}
+		if file.ContentType != params.ContentType {
+			t.Error("ContentType didn't match", file.ContentType, params.ContentType)
+		}
+		if file.Description != params.Description {
+			t.Error("Description didn't match", file.Description, params.Description)
+		}
+		if file.ThumbnailURL != params.ThumbnailURL {
+			t.Error("ThumbnailURL didn't match", file.ThumbnailURL, params.ThumbnailURL)
+		}
+		if file.UploaderID != params.UploaderID {
+			t.Error("UploaderID didn't match", file.UploaderID, params.UploaderID)
+		}
+		if file.Size != params.Size {
+			t.Error("Size didn't match", file.Size, params.Size)
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		files, err = c.ListLinkedFiles()
+		if err != nil {
+			t.Fatal("unexpected error listing files", err)
+		}
+		if len(files) == 0 {
+			t.Fatal("expected some files, got nothing")
+		}
+	})
+	t.Run("get", func(t *testing.T) {
+		got, err := c.GetLinkedFile(file.ID)
+		if err != nil {
+			t.Fatal("unexpeted error getting linked file", err)
+		}
+
+		if !reflect.DeepEqual(file, got) {
+			t.Error("expected file to match, got:", got)
+		}
+	})
+	t.Run("update", func(t *testing.T) {
+		update := UpdateLinkedFileParams{
+			Name:       String("a diff example file"),
+			Type:       LinkedFileTypeGoogle,
+			URL:        String("https://example.com/2"),
+			UploaderID: &memberUUID,
+
+			// the params below cause 500s for some reason:
+			//
+			// ThumbnailURL: "https://example.com/other.png",
+			// Description: "anything",
+
+			// the `size` param doesn't actually work, the API doesn't
+			// do anything with it.
+			//
+			// Size: Int(1060),
+
+		}
+		upfile, err := c.UpdateLinkedFile(file.ID, update)
+		if err != nil {
+			err := err.(ErrClientRequest)
+			fmt.Println(string(err.ResponseBody))
+			t.Fatal("error updating file", err)
+		}
+		if upfile.Name != *update.Name {
+			t.Error("Name didn't match", upfile.Name, *update.Name)
+		}
+		if upfile.URL != *update.URL {
+			t.Error("URL didn't match", upfile.URL, *update.URL)
+		}
+		if string(upfile.Type) != string(update.Type) {
+			t.Error("Type didn't match", upfile.Type, update.Type)
+		}
+		// if upfile.Size != *update.Size {
+		// 	t.Error("Size didn't match", upfile.Size, *update.Size)
+		// }
+		// if upfile.Description != update.Description {
+		// 	t.Error("Description didn't match", upfile.Description, update.Description)
+		// }
+		// if upfile.ThumbnailURL != update.ThumbnailURL {
+		// 	t.Error("ThumbnailURL didn't match", upfile.ThumbnailURL, update.ThumbnailURL)
+		// }
+
+	})
+	t.Run("delete", func(t *testing.T) {
+		for _, f := range files {
+			if err = c.DeleteLinkedFile(f.ID); err != nil {
+				t.Fatal("error deleting", err)
+			}
+		}
+	})
+}
+
 /* helpers */
 
 func tempProjAndStories(t *testing.T) (*Project, []StorySlim, func()) {
@@ -1951,8 +2165,6 @@ func tempProjAndStories(t *testing.T) (*Project, []StorySlim, func()) {
 		t.Fatal("error creating stories")
 	}
 	cleanup := func() {
-		os.Setenv("WIRETAP_DEBUG", "false")
-		os.Setenv("CLUBHOUSE_DEBUG", "false")
 		c.DeleteStory(stories[0].ID)
 		c.DeleteStory(stories[1].ID)
 		c.DeleteStory(stories[2].ID)

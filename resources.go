@@ -622,6 +622,70 @@ type LinkedFile struct {
 	URL          string    `json:"url"`
 }
 
+// CreateLinkedFileParams ...
+type CreateLinkedFileParams struct {
+	ContentType  string         `json:"content_type,omitempty"`
+	Description  string         `json:"description,omitempty"`
+	Name         string         `json:"name,omitempty"`
+	Size         int            `json:"size,omitempty"`
+	StoryID      int            `json:"story_id,omitempty"`
+	ThumbnailURL string         `json:"thumbnail_url,omitempty"`
+	Type         LinkedFileType `json:"type,omitempty"`
+	UploaderID   string         `json:"uploader_id,omitempty"`
+	URL          string         `json:"url,omitempty"`
+}
+
+// UpdateLinkedFileParams ...
+type UpdateLinkedFileParams struct {
+	Description  *string
+	Name         *string
+	Size         *int
+	ThumbnailURL *string
+	Type         LinkedFileType
+	UploaderID   *string
+	URL          *string
+}
+
+type updateLinkedFileParamsResolved struct {
+	Description  *string        `json:"description,omitempty"`
+	Name         *string        `json:"name,omitempty"`
+	Size         *string        `json:"size,omitempty"`
+	ThumbnailURL *string        `json:"thumbnail_url,omitempty"`
+	Type         LinkedFileType `json:"type,omitempty"`
+	UploaderID   *string        `json:"uploader_id,omitempty"`
+	URL          *string        `json:"url,omitempty"`
+}
+
+// MarshalJSON ...
+func (p UpdateLinkedFileParams) MarshalJSON() ([]byte, error) {
+	out := updateLinkedFileParamsResolved{
+		Description:  p.Description,
+		Name:         p.Name,
+		ThumbnailURL: p.ThumbnailURL,
+		Type:         p.Type,
+		UploaderID:   p.UploaderID,
+		URL:          p.URL,
+	}
+
+	// The Clubhouse API has Size as an int when creating, but requires
+	// a string when updating. Perhaps not ideal, so this smooths over
+	// that rough edge.
+	if p.Size != nil {
+		out.Size = String(itoa(*p.Size))
+	}
+
+	return json.Marshal(&out)
+}
+
+type LinkedFileType string
+
+const (
+	LinkedFileTypeBox      LinkedFileType = "box"
+	LinkedFileTypeGoogle                  = "google"
+	LinkedFileTypeOneDrive                = "onedrive"
+	LinkedFileTypeURL                     = "url"
+)
+
 // Member represents details about individual Clubhouse user within the
 // Clubhouse organization that has issued the token.
 type Member struct {

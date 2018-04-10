@@ -32,7 +32,6 @@ func (e ErrResponse) Error() string {
 	return fmt.Sprintf("%s (%d)", e.Message, e.Code)
 }
 
-// Errors
 var (
 	ErrSchemaMismatch   = ErrResponse{400, "Schema mismatch"}
 	ErrUnauthorized     = ErrResponse{401, "Unauthorized"}
@@ -611,6 +610,17 @@ func (c *Client) GetStory(id int) (*Story, error) {
 	return &resource, nil
 }
 
+// UpdateStory ...
+func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) {
+	resource := Story{}
+	uri := path.Join("stories", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
 // DeleteStory ...
 func (c *Client) DeleteStory(id int) error {
 	uri := path.Join("stories", itoa(id))
@@ -626,17 +636,6 @@ func (c *Client) DeleteStories(ids []int) error {
 	uri := path.Join("stories", "bulk")
 	params := deleteStoriesParam{StoryIDs: ids}
 	return c.RequestResource("DELETE", nil, uri, params)
-}
-
-// UpdateStory ...
-func (c *Client) UpdateStory(id int, params *UpdateStoryParams) (*Story, error) {
-	resource := Story{}
-	uri := path.Join("stories", itoa(id))
-	err := c.RequestResource("PUT", &resource, uri, params)
-	if err != nil {
-		return nil, err
-	}
-	return &resource, nil
 }
 
 // UpdateStories ...
@@ -738,6 +737,67 @@ func (c *Client) GetTeam(id int) (*Team, error) {
 	return &resource, nil
 }
 
+// ListWorkflows ...
+func (c *Client) ListWorkflows() ([]Workflow, error) {
+	resource := []Workflow{}
+	uri := "workflows"
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
+}
+
+// CreateLinkedFile ...
+func (c *Client) CreateLinkedFile(params CreateLinkedFileParams) (*LinkedFile, error) {
+	resource := LinkedFile{}
+	uri := "linked-files"
+	err := c.RequestResource("POST", &resource, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
+// ListLinkedFiles ...
+func (c *Client) ListLinkedFiles() ([]LinkedFile, error) {
+	resource := []LinkedFile{}
+	uri := "linked-files"
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resource, nil
+}
+
+// GetLinkedFile ...
+func (c *Client) GetLinkedFile(id int) (*LinkedFile, error) {
+	resource := LinkedFile{}
+	uri := path.Join("linked-files", itoa(id))
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
+// UpdateLinkedFile ...
+func (c *Client) UpdateLinkedFile(id int, params UpdateLinkedFileParams) (*LinkedFile, error) {
+	resource := LinkedFile{}
+	uri := path.Join("linked-files", itoa(id))
+	err := c.RequestResource("PUT", &resource, uri, params)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
+// DeleteLinkedFile ...
+func (c *Client) DeleteLinkedFile(id int) error {
+	uri := path.Join("linked-files", itoa(id))
+	return c.RequestResource("DELETE", nil, uri, nil)
+}
+
 // ErrClientRequest is returned when the client runs into
 // problems making a request.
 type ErrClientRequest struct {
@@ -748,7 +808,19 @@ type ErrClientRequest struct {
 	Response     *http.Response
 	RequestBody  []byte
 	ResponseBody []byte
+	Stage        ErrStage
 }
+
+// ErrStage describes the stage at which a ErrClientRequest occured.
+type ErrStage int
+
+const (
+	ErrStagePreRequest ErrStage = iota
+	ErrStageConstructRequest
+	ErrStageSendRequest
+	ErrStageReadRequestBody
+	ErrStageResponse
+)
 
 func (e ErrClientRequest) Error() string {
 	return fmt.Sprintf("clubhouse client request error: %s %s: %s", e.Method, e.URL, e.Err)
@@ -760,20 +832,28 @@ type errMessage struct {
 
 // HTTPRequest makes an HTTP request to the Clubhouse API.
 //
-// Ideally you should be able to use the table type methods
-// (List/Get/Update/Delete) and shouldn't have to use this too much.
+// Ideally you should be able to use the resource type methods
+// (Create/List/Get/Update/Delete) and shouldn't have to rely on this,
+// but it's here if needed.
 //
-// endpoint will be combined with the client's RootlURL, Version and
-// BaseID, to create the complete URL. endpoint is expected to already
-// be encoded; if necessary, use url.PathEscape before passing
-// HTTPRequest.
+// endpoint is combined with the client's RootlURL, Version and BaseID,
+// to create the complete URL. Other than previously mentioned
+// concatenation, endpoint will be used as-is; if necessary, use
+// url.PathEscape before passing to HTTPRequest.
 //
-// options takes a value that satisfies the QueryEncoder interface,
-// which is a type that has an `Encode() string` method. See the Options
-// type in this package, but also know that you can always use an
-// instance of url.Values.
+// content is the body for the request.
+//
+// header is the set of the headers for the request. If nil, defaults
+// including the `content-type: application/json`.
 //
 // If client is missing AuthToken, this method will panic.
+//
+//
+// Error Handling:
+//
+// HTTPRequest encapsulates any internal errors in ErrClientRequest. The
+// original error can be extracted from the Err field of the
+// ErrClientRequest instance.
 func (c *Client) HTTPRequest(
 	method string,
 	endpoint string,
@@ -783,7 +863,15 @@ func (c *Client) HTTPRequest(
 	// finish setup or panic if the client isn't configured correctly
 	c.checkSetup()
 
-	url := c.makeURL(endpoint)
+	url, err := c.makeURL(endpoint)
+	if err != nil {
+		return nil, ErrClientRequest{
+			Err:    err,
+			URL:    url,
+			Method: method,
+			Stage:  ErrStagePreRequest,
+		}
+	}
 	body := bytes.NewBuffer(content)
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
@@ -793,6 +881,7 @@ func (c *Client) HTTPRequest(
 			Method:      method,
 			Request:     req,
 			RequestBody: content,
+			Stage:       ErrStageConstructRequest,
 		}
 	}
 
@@ -814,10 +903,11 @@ func (c *Client) HTTPRequest(
 			Method:      method,
 			Request:     req,
 			RequestBody: content,
+			Stage:       ErrStageSendRequest,
 		}
 	}
 
-	bytes, err := ioutil.ReadAll(resp.Body)
+	respContent, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, ErrClientRequest{
 			Err:          err,
@@ -826,12 +916,14 @@ func (c *Client) HTTPRequest(
 			Request:      req,
 			RequestBody:  content,
 			Response:     resp,
-			ResponseBody: bytes,
+			ResponseBody: respContent,
+			Stage:        ErrStageReadRequestBody,
 		}
 	}
 
 	switch resp.StatusCode {
 	case 400:
+		// returns body: {message: ..., errors: ...}
 		err = ErrSchemaMismatch
 	case 401:
 		err = ErrUnauthorized
@@ -843,11 +935,10 @@ func (c *Client) HTTPRequest(
 		err = ErrServerError
 	}
 
-	// TODO: I bet 400 errors also have a message?
 	if err != nil {
-		if err == ErrUnprocessable {
+		if err == ErrUnprocessable || err == ErrSchemaMismatch {
 			message := errMessage{}
-			jsonerr := json.Unmarshal(bytes, &message)
+			jsonerr := json.Unmarshal(respContent, &message)
 			if jsonerr == nil {
 				err = fmt.Errorf("%s: %s", err, message.Message)
 			}
@@ -860,12 +951,14 @@ func (c *Client) HTTPRequest(
 			Request:      req,
 			RequestBody:  content,
 			Response:     resp,
-			ResponseBody: bytes,
+			ResponseBody: respContent,
+			Stage:        ErrStageResponse,
 		}
 	}
-	return bytes, nil
+	return respContent, nil
 }
 
+// RequestResource ...
 func (c *Client) RequestResource(
 	method string,
 	resource interface{},
@@ -881,17 +974,14 @@ func (c *Client) RequestResource(
 		if err != nil {
 			return fmt.Errorf("could not marshal params, %s", err)
 		}
-
-		if os.Getenv("CLUBHOUSE_DEBUG") == "true" {
-			log.Print("body", string(body))
-		}
+		debugf("%s %s body: %s", method, uri, string(body))
 	}
-	bytes, err := c.HTTPRequest(method, uri, body, nil)
+	response, err := c.HTTPRequest(method, uri, body, nil)
 	if err != nil {
 		return err
 	}
 	if resource != nil {
-		return json.Unmarshal(bytes, &resource)
+		return json.Unmarshal(response, &resource)
 	}
 	return nil
 }
@@ -914,14 +1004,14 @@ func (c *Client) checkSetup() {
 	}
 }
 
-func (c *Client) makeURL(resource string) string {
+func (c *Client) makeURL(resource string) (string, error) {
 	urlparts, err := url.Parse(c.RootURL)
 	if err != nil {
-		panic(fmt.Errorf("could not parse RootURL %s", err))
+		return "", fmt.Errorf("could not parse RootURL %s", err)
 	}
 	urlparts.Path = path.Join(urlparts.Path, c.Version, resource)
 	urlparts.RawQuery = "token=" + c.AuthToken
-	return urlparts.String()
+	return urlparts.String(), nil
 }
 
 type nullable []struct {
@@ -941,5 +1031,18 @@ func (n nullable) Do() {
 			}
 			*f.out = &raw
 		}
+	}
+}
+
+var debuglogger = log.New(os.Stderr, "debug:", log.Lshortfile)
+
+func debugf(format string, v ...interface{}) {
+	if os.Getenv("CLUBHOUSE_DEBUG") == "true" {
+		debuglogger.Printf(format, v...)
+	}
+}
+func debug(v ...interface{}) {
+	if os.Getenv("CLUBHOUSE_DEBUG") == "true" {
+		debuglogger.Println(v...)
 	}
 }
