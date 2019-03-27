@@ -798,6 +798,17 @@ func (c *Client) DeleteLinkedFile(id int) error {
 	return c.RequestResource("DELETE", nil, uri, nil)
 }
 
+// GetEpicWorkflow ...
+func (c *Client) GetEpicWorkflow() (*EpicWorkflow, error) {
+	resource := EpicWorkflow{}
+	uri := "epic-workflow"
+	err := c.RequestResource("GET", &resource, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resource, nil
+}
+
 // ErrClientRequest is returned when the client runs into
 // problems making a request.
 type ErrClientRequest struct {

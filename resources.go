@@ -383,15 +383,18 @@ type Epic struct {
 	Deadline            time.Time         `json:"deadline"`
 	Description         string            `json:"description"`
 	EntityType          string            `json:"entity_type"`
+	EpicStateID         int               `json:"epic_state_id"`
 	ExternalID          string            `json:"external_id"`
 	FollowerIDs         []string          `json:"follower_ids"`
 	ID                  int               `json:"id"`
 	Labels              []Label           `json:"labels"`
+	MentionIDs          []string          `json:"mention_ids"`
 	MilestoneID         int               `json:"milestone_id"`
 	Name                string            `json:"name"`
 	OwnerIDs            []string          `json:"owner_ids"`
 	Position            int               `json:"position"`
 	ProjectIDs          []int             `json:"project_ids"`
+	RequestedByID       string            `json:"requested_by_id"`
 	Started             bool              `json:"started"`
 	StartedAt           time.Time         `json:"started_at"`
 	StartedAtOverride   time.Time         `json:"started_at_override"`
@@ -405,12 +408,14 @@ type CreateEpicParams struct {
 	CompletedAtOverride *time.Time          `json:"completed_at_override,omitempty"`
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	Deadline            *time.Time          `json:"deadline,omitempty"`
+	EpicStateID         *int                `json:"epic_state_id,omitempty"`
 	ExternalID          string              `json:"external_id,omitempty"`
 	FollowerIDs         []string            `json:"follower_ids,omitempty"`
 	Labels              []CreateLabelParams `json:"labels,omitempty"`
 	MilestoneID         int                 `json:"milestone_id,omitempty"`
 	Name                string              `json:"name"`
 	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	RequestedByID       string              `json:"requested_by_id,omitempty"`
 	StartedAtOverride   *time.Time          `json:"started_at_override,omitempty"`
 	State               State               `json:"state,omitempty"`
 	UpdatedAt           *time.Time          `json:"updated_at,omitempty"`
@@ -424,11 +429,13 @@ type UpdateEpicParams struct {
 	CompletedAtOverride *time.Time
 	Deadline            *time.Time
 	Description         *string
+	EpicStateID         *int
 	FollowerIDs         []string
 	Labels              []CreateLabelParams
 	MilestoneID         *int
 	Name                string
 	OwnerIDs            []string
+	RequestedByID       string
 	StartedAtOverride   *time.Time
 	State               State
 }
@@ -439,11 +446,13 @@ type updateEpicParamsResolved struct {
 	CompletedAtOverride *json.RawMessage    `json:"completed_at_override,omitempty"`
 	Deadline            *json.RawMessage    `json:"deadline,omitempty"`
 	Description         *string             `json:"description,omitempty"`
+	EpicStateID         *int                `json:"epic_state_id,omitempty"`
 	FollowerIDs         []string            `json:"follower_ids,omitempty"`
 	Labels              []CreateLabelParams `json:"labels,omitempty"`
 	MilestoneID         *json.RawMessage    `json:"milestone_id,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	OwnerIDs            []string            `json:"owner_ids,omitempty"`
+	RequestedByID       string              `json:"requested_by_id,omitempty"`
 	StartedAtOverride   *json.RawMessage    `json:"started_at_override,omitempty"`
 	State               State               `json:"state,omitempty"`
 }
@@ -451,15 +460,17 @@ type updateEpicParamsResolved struct {
 // MarshalJSON ...
 func (p UpdateEpicParams) MarshalJSON() ([]byte, error) {
 	out := updateEpicParamsResolved{
-		Archived:    p.Archived,
-		AfterID:     p.AfterID,
-		BeforeID:    p.BeforeID,
-		Description: p.Description,
-		FollowerIDs: p.FollowerIDs,
-		Labels:      p.Labels,
-		Name:        p.Name,
-		OwnerIDs:    p.OwnerIDs,
-		State:       p.State,
+		Archived:      p.Archived,
+		AfterID:       p.AfterID,
+		BeforeID:      p.BeforeID,
+		Description:   p.Description,
+		EpicStateID:   p.EpicStateID,
+		FollowerIDs:   p.FollowerIDs,
+		Labels:        p.Labels,
+		Name:          p.Name,
+		OwnerIDs:      p.OwnerIDs,
+		RequestedByID: p.RequestedByID,
+		State:         p.State,
 	}
 
 	nullable{{
@@ -1140,6 +1151,7 @@ type Story struct {
 	ID                  int              `json:"id"`
 	Labels              []Label          `json:"labels"`
 	LinkedFiles         []LinkedFile     `json:"linked_files"`
+	MentionIDs          []string         `json:"mention_ids"`
 	MovedAt             time.Time        `json:"moved_at"`
 	Name                string           `json:"name"`
 	OwnerIDs            []string         `json:"owner_ids"`
@@ -1189,6 +1201,7 @@ type StorySearch struct {
 	FollowerIDs         []string         `json:"follower_ids"`
 	ID                  int              `json:"id"`
 	Labels              []Label          `json:"labels"`
+	MentionIDs          []string         `json:"mention_ids"`
 	MovedAt             time.Time        `json:"moved_at"`
 	Name                string           `json:"name"`
 	OwnerIDs            []string         `json:"owner_ids"`
@@ -1224,6 +1237,7 @@ type StorySlim struct {
 	ID                  int              `json:"id"`
 	Labels              []Label          `json:"labels"`
 	LinkedFileIDs       []int            `json:"linked_file_ids"`
+	MentionIDs          []string         `json:"mention_ids"`
 	MovedAt             time.Time        `json:"moved_at"`
 	Name                string           `json:"name"`
 	OwnerIDs            []string         `json:"owner_ids"`
@@ -1324,4 +1338,29 @@ type WorkflowState struct {
 	Type        string    `json:"type"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Verb        string    `json:"verb"`
+}
+
+// Epic Workflow is the array of defined Epic States. Epic Workflow can be
+// queried using the API but must be updated in the Clubhouse UI.
+type EpicWorkflow struct {
+	CreatedAt          time.Time   `json:"created_at"`
+	DefaultEpicStateID int         `json:"default_epic_state_id"`
+	EntityType         string      `json:"entity_type"`
+	EpicStates         []EpicState `json:"epic_states"`
+	ID                 int         `json:"id"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+}
+
+// Epic State is any of the at least 3 columns. Epic States
+// correspond to one of 3 types: Unstarted, Started, or Done.
+type EpicState struct {
+	Color       string    `json:"color"`
+	CreatedAt   time.Time `json:"created_at"`
+	Description string    `json:"description"`
+	EntityType  string    `json:"entity_type"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	Position    int       `json:"position"`
+	Type        string    `json:"type"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
